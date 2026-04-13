@@ -18,7 +18,9 @@ The next Codex session should stay in:
 - Production AVD infrastructure work remains in `/Users/chad.lampton/Documents/repo/rdp-avd-fshosted`.
 - Repo is an active local workspace for discovery automation, notes, and probe iteration.
 - Lab plan and probe now exist:
+  - `docs/TOMORROW_TEST_CHECKLIST.md`
   - `docs/TEST_PLAN.md`
+  - `docs/CURRENT_STATE.md`
   - `scripts/README.md`
   - `scripts/Invoke-RDPWinLabProbe.ps1`
 - Azure automation scaffold now exists:
@@ -29,6 +31,7 @@ The next Codex session should stay in:
   - `terraform/`
   - `docs/RUNBOOK.md`
   - `docs/ARCHITECTURE.md`
+  - `docs/CURRENT_STATE.md`
   - `docs/VALIDATION.md`
 - DB test-server design material now exists:
   - `docs/DBTEST01.md`
@@ -129,6 +132,16 @@ The following installer media is now staged locally outside git:
 - `/Users/chad.lampton/Documents/RDPInstalls/DBServers/Zen_Patch_CloudServer-16.11.006.000.exe`
 - `/Users/chad.lampton/Documents/RDPInstalls/DBServers/RDPWinServer5.6.001.6.exe`
 
+The Miro screenshots in `/Users/chad.lampton/Documents/RDP-Miro-Visual-Designs`
+were also reviewed and translated into repo notes. The main takeaways are:
+
+- the retained environment is multi-tier, not a one-box app
+- Windows/session-host access and app/database login are separate identity steps
+- AD still appears to influence initial DB/share/path selection
+- one term host plus one backend server is therefore the correct discovery shape
+- if the app still depends on legacy auth patterns instead of modern auth, that
+  is a design and PCI risk, not just a migration inconvenience
+
 The probe script was also fixed locally on 2026-04-13:
 
 - `scripts/Invoke-RDPWinLabProbe.ps1`
@@ -190,6 +203,13 @@ The production infrastructure repo is moving toward Azure Virtual Desktop, but k
 
 ## Current Discovery Facts To Preserve
 
+- The retained architecture is multi-tier:
+  - terminal/session-host tier
+  - DB/file-share tier
+  - adjacent IRM/web/API systems
+  - backup, replication, monitoring, and VPN/external systems
+- The Miro current-state diagrams reinforce that this repo is intentionally a
+  narrow discovery slice, not a full production clone.
 - Customer users currently receive an app-like session, not a broad desktop.
 - Current customer launch is controlled by GPO behavior named `StartRDPWin`.
 - Current confirmed executable path:
@@ -212,6 +232,9 @@ The production infrastructure repo is moving toward Azure Virtual Desktop, but k
 - After that starting share or directory is established, the user can choose which DB to log into inside the application.
 - AD group membership is therefore a real dependency in the current design.
 - UNC/share access to retained `DB01` / `DB02` paths is therefore a real dependency in the current design.
+- Windows/server access and app/database access are separate identity steps in the current model.
+- Modern-auth readiness is not proven. If `RDPWin` still depends on legacy auth
+  patterns or classic AD-driven routing, that is a design and PCI risk.
 - The current routing explanation is now clearer:
   - SMB/UNC share access is granted through AD security groups
   - the user logs into the server and is allowed access to either the `DB01` or `DB02` path based on AD group membership
@@ -234,6 +257,8 @@ The production infrastructure repo is moving toward Azure Virtual Desktop, but k
 ## Still To Decide
 
 - whether the first host should stay Entra-joined for testing or whether classic AD-domain-join is required earlier because of AD-group-driven share/path selection
+- whether the retained auth model can satisfy modern-auth and PCI expectations,
+  or whether that becomes a hard blocker for the target design
 - which network path should be used to reach `DB01` / `DB02`
 - whether the first test targets `DB01`, `DB02`, or both
 - whether the questionnaire answer "none" for Azure-to-Liquid-Web routing reflects final migration intent only, or whether the approved Azure test-user/test-database path still depends on retained AD, UNC, or other hybrid connectivity during discovery
@@ -279,6 +304,8 @@ We are stopped after:
 16. applying Entra VM login RBAC on both VMs for `chad.lampton@fullsteamhosted.com`
 17. confirming SMB/UNC access from `RDPDISC01` to the three `DBTEST01` hidden shares
 18. fixing the probe installed-software collector and confirming a later rerun completed without collector errors
+19. reviewing the Miro current-state screenshots and capturing the architecture in `docs/CURRENT_STATE.md`
+20. creating `docs/TOMORROW_TEST_CHECKLIST.md` so tomorrow can run from a procedure instead of improvisation
 
 We have not yet:
 
@@ -296,21 +323,27 @@ We have not yet:
   - Azure test user
   - test database
   - any required test-side server/share/path mapping
+- proven whether first launch can work without reproducing some classic-AD or legacy-auth behavior
 
 ## Deployment Readiness
 
 The base Azure lab is deployed and ready for the next operational sequence:
 
-1. assign Azure RBAC for Entra VM sign-in if not already assigned:
-   - `Virtual Machine User Login` or `Virtual Machine Administrator Login`
-2. access `RDPDISC01` and `DBTEST01` through Bastion or the approved admin path
-3. verify UNC access from `RDPDISC01` to `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and `\\DBTEST01\RDPDATA$`
-4. run the `Baseline` probe on `RDPDISC01`
-5. install Actian client
-6. run the `AfterActian` probe
-7. install and configure `RDPWin`
-8. run the `AfterRDPWinInstall`, `AfterConfig`, and `LaunchSmoke` probes
-9. capture login, backend selection, share/path, and auth behavior
+1. confirm `RDPDISC01` and `DBTEST01` are reachable through the approved admin path
+2. verify UNC access from `RDPDISC01` to `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and `\\DBTEST01\RDPDATA$`
+3. run a clean `Baseline` probe on `RDPDISC01` against `DBTEST01` with explicit `-SharePaths`
+4. install terminal-side prerequisites on `RDPDISC01` in this order:
+   - `VC_redist.x64.exe`
+   - `VC_redist.x86.exe`
+   - `CRRuntime_64bit_13_0_39.msi`
+   - `Zen_Patch_Client-16.11.006.000.exe`
+5. run the `AfterActian` probe
+6. install `RDPWinMSI_5.6.001.6.msi`
+7. run the `AfterRDPWinInstall` probe
+8. inspect `C:\ProgramData\ResortDataProcessing\RDPWin`
+9. apply only the minimum config needed for the approved non-production path
+10. run the `AfterConfig` and `LaunchSmoke` probes
+11. capture whether the first failure, if any, is install, config, auth, DB, or share related
 
 For `DBTEST01`, the current post-deploy sequence is:
 
@@ -376,13 +409,13 @@ Suggested phases:
 Baseline example:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DB01,DB02
+PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
 Launch-monitor example:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase LaunchSmoke -TargetHosts DB01,DB02 -MonitorRDPWinSeconds 180
+PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase LaunchSmoke -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$' -MonitorRDPWinSeconds 180
 ```
 
 Default Windows output root:
@@ -406,7 +439,8 @@ The next Codex session should not spend time on more Terraform scaffolding.
 
 The immediate next steps are:
 
-1. confirm Entra sign-in RBAC for the test user on `rdp-discovery-01` and `db-test-01`
+1. use `docs/TOMORROW_TEST_CHECKLIST.md` as the operator run sheet
 2. verify UNC/share access from `RDPDISC01` to `DBTEST01`
-3. run the Windows-side `Baseline` probe on `RDPDISC01`
+3. run the Windows-side `Baseline` probe on `RDPDISC01` against `DBTEST01` with explicit `-SharePaths`
 4. begin Actian and `RDPWin` discovery against the Azure-hosted backend
+5. treat legacy-auth or AD-driven routing requirements as a possible design and PCI blocker, not just a test inconvenience
