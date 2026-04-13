@@ -151,15 +151,23 @@ function Get-InstallEntries {
     foreach ($root in $roots) {
         Get-ItemProperty -Path $root -ErrorAction SilentlyContinue |
             Where-Object {
-                $name = $_.DisplayName
-                $publisher = $_.Publisher
+                $name = Get-ObjectPropertyValue -InputObject $_ -Name 'DisplayName'
+                $publisher = Get-ObjectPropertyValue -InputObject $_ -Name 'Publisher'
                 ($name -match 'RDPWin|Resort|Actian|Zen|Pervasive|PSQL|Crystal|WebView2') -or
                 ($publisher -match 'Resort|Actian|Pervasive')
             } |
-            Select-Object @{
-                Name = 'RegistryRoot'
-                Expression = { $root }
-            }, DisplayName, DisplayVersion, Publisher, InstallDate, InstallLocation, UninstallString, PSChildName
+            ForEach-Object {
+                [pscustomobject]@{
+                    RegistryRoot    = $root
+                    DisplayName     = Get-ObjectPropertyValue -InputObject $_ -Name 'DisplayName'
+                    DisplayVersion  = Get-ObjectPropertyValue -InputObject $_ -Name 'DisplayVersion'
+                    Publisher       = Get-ObjectPropertyValue -InputObject $_ -Name 'Publisher'
+                    InstallDate     = Get-ObjectPropertyValue -InputObject $_ -Name 'InstallDate'
+                    InstallLocation = Get-ObjectPropertyValue -InputObject $_ -Name 'InstallLocation'
+                    UninstallString = Get-ObjectPropertyValue -InputObject $_ -Name 'UninstallString'
+                    PSChildName     = Get-ObjectPropertyValue -InputObject $_ -Name 'PSChildName'
+                }
+            }
     }
 }
 

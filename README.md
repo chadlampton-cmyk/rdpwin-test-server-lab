@@ -58,7 +58,7 @@ Use it on the test server before install, after Actian install, after `RDPWin` i
 Example:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DB01,DB02
+PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
 See:
@@ -144,6 +144,22 @@ As of 2026-04-13, the Azure lab has been deployed in `platform-sandbox` and incl
 - provisioned with a system-assigned managed identity
 - provisioned with the `AADLoginForWindows` extension
 - bootstrapped with `F:\RDPDiscovery`
+
+Current validated operator findings:
+
+- `RDPDISC01` can reach `\\DBTEST01\RDPAPPS$`
+- `RDPDISC01` can reach `\\DBTEST01\RDPCONFIG$`
+- `RDPDISC01` can reach `\\DBTEST01\RDPDATA$`
+- Entra VM login RBAC has been applied for `chad.lampton@fullsteamhosted.com` on both VMs
+- the current Bastion in `rg-rdp-discovery-test` is `Developer` SKU, so terminal/native-client tunnel workflows should not be treated as available in this lab without a paid SKU change
+
+Current known installer staging outside git:
+
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/RDPWinMSI_5.6.001.6.msi`
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/Zen_Patch_Client-16.11.006.000.exe`
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/CRRuntime_64bit_13_0_39.msi`
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x64.exe`
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x86.exe`
 
 The next work is Windows-side validation and application discovery, not more
 base infrastructure build-out. The first identity automation step, placing both

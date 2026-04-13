@@ -16,12 +16,17 @@ than rebuilding retained `DB01` or `DB02`.
 Before installing `RDPWin` or Actian, access the deployed Windows host through Bastion and run the lab probe:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DB01,DB02
+PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
 Capture whether the host is workgroup/domain/Entra joined, which DNS servers it
 uses, whether `DBTEST01` resolves, and whether required backend ports are
 reachable for the approved non-production test path.
+
+Current lab note:
+
+- a manual UNC test from `RDPDISC01` to `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and `\\DBTEST01\RDPDATA$` has already succeeded
+- the probe script was fixed on 2026-04-13 so the installed-software collector no longer fails on uninstall-registry entries without `DisplayName`
 
 ### 0. Backend Bootstrap
 
@@ -39,10 +44,17 @@ reach the intended UNC paths.
 
 Install the approved Actian / Zen client package for the lab test path.
 
+Current likely terminal-side first-pass install order from local staging:
+
+1. `VC_redist.x64.exe`
+2. `VC_redist.x86.exe`
+3. `CRRuntime_64bit_13_0_39.msi`
+4. `Zen_Patch_Client-16.11.006.000.exe`
+
 Run:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase AfterActian -TargetHosts DB01,DB02
+PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase AfterActian -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
 Capture installed product version, services, ODBC drivers, ODBC DSNs, and connectivity.
@@ -53,10 +65,14 @@ If installer files are local on the test host, pass them with `-InstallerPaths` 
 
 Install the authoritative `RDPWin` package from an out-of-git location after the correct package is received from the named installer owner.
 
+Current likely client package:
+
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/RDPWinMSI_5.6.001.6.msi`
+
 Run:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase AfterRDPWinInstall -TargetHosts DB01,DB02
+PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase AfterRDPWinInstall -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
 Confirm whether these exist:
@@ -75,7 +91,7 @@ Record every manual change in `local/` or `docs/OBSERVATIONS.md` before converti
 Run:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase AfterConfig -TargetHosts DB01,DB02
+PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase AfterConfig -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
 ### 5. First Launch Test
@@ -83,7 +99,7 @@ PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1
 Start the monitor, launch `RDPWin.exe` manually, sign in with the approved Azure test user and app-side test identity if separate, perform a narrow smoke test, close the application, then let the monitor complete:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase LaunchSmoke -TargetHosts DB01,DB02 -MonitorRDPWinSeconds 180
+PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase LaunchSmoke -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$' -MonitorRDPWinSeconds 180
 ```
 
 Capture whether login succeeds, which backend is reached, whether obvious errors appear, whether printing can be tested, and what profile or ProgramData files change.

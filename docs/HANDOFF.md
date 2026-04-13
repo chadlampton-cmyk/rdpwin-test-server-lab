@@ -103,6 +103,38 @@ AVD session-host registration has now been confirmed from inside the VM:
 - `RdAgent` service is running
 - `RDAgentBootLoader` service is running
 
+The following identity and backend-access checks were also completed in the lab:
+
+- Entra VM login RBAC was applied for `chad.lampton@fullsteamhosted.com` on `rdp-discovery-01`
+- Entra VM login RBAC was applied for `chad.lampton@fullsteamhosted.com` on `db-test-01`
+- `RDPDISC01` successfully reached:
+  - `\\DBTEST01\RDPAPPS$`
+  - `\\DBTEST01\RDPCONFIG$`
+  - `\\DBTEST01\RDPDATA$`
+
+The following operator constraint also matters:
+
+- the lab Bastion in `rg-rdp-discovery-test` is `Developer` SKU
+- do not assume terminal/native-client tunnel workflows are available from macOS
+- treat Azure portal/Bastion admin access as the current supported path unless the Bastion SKU is intentionally changed later
+
+The following installer media is now staged locally outside git:
+
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/RDPWinMSI_5.6.001.6.msi`
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/Zen_Patch_Client-16.11.006.000.exe`
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/CRRuntime_64bit_13_0_39.msi`
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x64.exe`
+- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x86.exe`
+- `/Users/chad.lampton/Documents/RDPInstalls/DBServers/Zen-CloudServer-16.10.004.000-win.exe`
+- `/Users/chad.lampton/Documents/RDPInstalls/DBServers/Zen_Patch_CloudServer-16.11.006.000.exe`
+- `/Users/chad.lampton/Documents/RDPInstalls/DBServers/RDPWinServer5.6.001.6.exe`
+
+The probe script was also fixed locally on 2026-04-13:
+
+- `scripts/Invoke-RDPWinLabProbe.ps1`
+- the installed-software collector now tolerates uninstall-registry entries that do not expose `DisplayName`
+- a later rerun succeeded without `error_installed_software.json`
+
 ## Working Assumption
 
 Build one fresh Windows test server, install/configure `RDPWin`, and learn the minimum repeatable setup needed for later AVD session-host automation.
@@ -171,7 +203,7 @@ The production infrastructure repo is moving toward Azure Virtual Desktop, but k
 - Existing terminal hosts show version/artifact drift; do not assume any one terminal host is a clean image baseline.
 - Working direction is MSI/package-based `RDPWin` install on a fresh host, not cloning an old TERM server.
 - Stephen White is the named owner for providing `RDPWin`, Actian Zen client, and any helper launcher/interface install media.
-- Stephen White has been identified as the installer owner, but the exact package files and versions were still pending at the last update.
+- install media is now staged locally in `/Users/chad.lampton/Documents/RDPInstalls`
 - Actian client version and config may matter.
 - UNC/share launch paths may matter.
 - Each Logo has its own independent Actian Zen database.
@@ -206,9 +238,7 @@ The production infrastructure repo is moving toward Azure Virtual Desktop, but k
 - whether the first test targets `DB01`, `DB02`, or both
 - whether the questionnaire answer "none" for Azure-to-Liquid-Web routing reflects final migration intent only, or whether the approved Azure test-user/test-database path still depends on retained AD, UNC, or other hybrid connectivity during discovery
 - authoritative `RDPWin` installer/package path
-- exact `RDPWin` package has not yet been obtained from Stephen White
 - required Actian/client/ODBC setup
-- exact Actian Zen client package/version has not yet been obtained from Stephen White
 - exact post-install configuration steps for `RDPWin`
 - exact component that performs the AD-group-to-share/path lookup
 - whether app-side MFA exists inside `RDPWin`, and if so how it is implemented
@@ -246,11 +276,14 @@ We are stopped after:
 13. deploying `db-test-01` / `DBTEST01` into the same Azure lab footprint
 14. confirming `DBTEST01` is running with private IP `10.210.10.5`
 15. bootstrapping `DBTEST01` with `F:\RDPDiscovery` and the hidden SMB shares
+16. applying Entra VM login RBAC on both VMs for `chad.lampton@fullsteamhosted.com`
+17. confirming SMB/UNC access from `RDPDISC01` to the three `DBTEST01` hidden shares
+18. fixing the probe installed-software collector and confirming a later rerun completed without collector errors
 
 We have not yet:
 
 - installed Actian or `RDPWin` on the Windows host
-- run the Windows-side baseline probe on the deployed host
+- run a clean `Baseline` probe on the deployed host using `DBTEST01` plus explicit `-SharePaths`
 - proven whether Entra-joined-only is viable once AD-group-driven share selection is exercised
 - loaded an approved non-production Actian Zen data set onto `DBTEST01`
 - reconciled the new questionnaire answers against earlier discovery notes where they appear to conflict

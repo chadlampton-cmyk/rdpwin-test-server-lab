@@ -79,7 +79,7 @@ Expected behavior:
 Then use the Windows-side probe on the session host after you can reach it through Bastion:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DB01,DB02
+PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
 Then continue with Actian install, RDPWin install, config, and launch smoke testing.
@@ -95,10 +95,16 @@ Current deployed state in `platform-sandbox`:
 - DB backend data root: `F:\RDPDiscovery`
 - DB backend power state: running
 - DB backend `AADLoginForWindows` extension: succeeded
+- `RDPDISC01` can browse `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and `\\DBTEST01\RDPDATA$`
+- Entra VM login RBAC for `chad.lampton@fullsteamhosted.com` is present on both VMs
+- lab Bastion is currently `Developer` SKU, so native-client/tunnel workflows should not be assumed available
 
 Current recommended operator flow:
 
 1. confirm Entra sign-in RBAC on both VMs
 2. verify UNC access from `RDPDISC01` to `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and `\\DBTEST01\RDPDATA$`
-3. run the `Baseline` probe on `RDPDISC01`
-4. proceed with Actian and `RDPWin` testing
+3. run the `Baseline` probe on `RDPDISC01` against `DBTEST01` with explicit `-SharePaths`
+4. install the terminal-side prerequisites from `/Users/chad.lampton/Documents/RDPInstalls/TermServers/`
+5. rerun probe as `AfterActian`
+6. install `RDPWinMSI_5.6.001.6.msi`
+7. rerun probe as `AfterRDPWinInstall`
