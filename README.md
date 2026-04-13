@@ -63,7 +63,9 @@ PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1
 
 See:
 
+- `docs/TOMORROW_TEST_CHECKLIST.md`
 - `docs/TEST_PLAN.md`
+- `docs/CURRENT_STATE.md`
 - `scripts/README.md`
 
 ## Azure Lab Automation
@@ -76,6 +78,7 @@ This repo now also contains a narrow SAW-style Azure automation structure for a 
 - `terraform/`
 - `docs/RUNBOOK.md`
 - `docs/ARCHITECTURE.md`
+- `docs/CURRENT_STATE.md`
 - `docs/VALIDATION.md`
 
 This automation now builds the Azure lab platform:
