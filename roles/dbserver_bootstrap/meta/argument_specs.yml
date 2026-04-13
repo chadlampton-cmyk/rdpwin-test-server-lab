@@ -1,0 +1,44 @@
+---
+argument_specs:
+  main:
+    short_description: Bootstrap the DBTEST01 VM after deployment.
+    options:
+      resource_group_name:
+        type: str
+        required: true
+      dbserver_vm_name:
+        type: str
+        required: true
+      dbserver_admin_username:
+        type: str
+        required: true
+      dbserver_bootstrap_root_path:
+        type: str
+        required: false
+      dbserver_bootstrap_volume_label:
+        type: str
+        required: false
+      dbserver_bootstrap_drive_letter:
+        type: str
+        required: false
+      dbserver_bootstrap_create_shares:
+        type: bool
+        required: false
+      dbserver_bootstrap_share_full_access:
+        type: list
+        elements: str
+        required: false
+      dbserver_bootstrap_share_change_access:
+        type: list
+        elements: str
+        required: false
+      dbserver_bootstrap_share_read_access:
+        type: list
+        elements: str
+        required: false
+      dbserver_bootstrap_script_path:
+        type: str
+        required: false
+      dbserver_bootstrap_manifest_path:
+        type: str
+        required: false

@@ -1,0 +1,131 @@
+{
+  "serverName": "DBTEST01",
+  "rootPath": "F:\\RDPDiscovery",
+  "folders": [
+    {
+      "path": "Apps",
+      "purpose": "Application binaries and packaged dependencies staged on the DB test server."
+    },
+    {
+      "path": "Apps\\RDPWin\\Client",
+      "purpose": "Optional copy of the RDPWin client or helper launch assets."
+    },
+    {
+      "path": "Apps\\RDPWin\\Config",
+      "purpose": "Canonical config artifacts such as GroupToServer5.txt or RDPWinPath5.txt."
+    },
+    {
+      "path": "Apps\\ActianZen\\Client",
+      "purpose": "Actian Zen client installers and extracted support files."
+    },
+    {
+      "path": "Apps\\ActianZen\\Utilities",
+      "purpose": "Vendor utilities, DSN exports, and database maintenance tools."
+    },
+    {
+      "path": "Data",
+      "purpose": "All discovery data hosted by DBTEST01."
+    },
+    {
+      "path": "Data\\Logos",
+      "purpose": "Top-level container for logo-specific Actian Zen data sets."
+    },
+    {
+      "path": "Data\\Logos\\_Template",
+      "purpose": "Template layout for each non-production logo/database copy."
+    },
+    {
+      "path": "Data\\Logos\\_Template\\Database",
+      "purpose": "Primary Zen database files for a single logo."
+    },
+    {
+      "path": "Data\\Logos\\_Template\\Users",
+      "purpose": "Logo-specific users.dat and related user-state files."
+    },
+    {
+      "path": "Data\\Logos\\_Template\\Exports",
+      "purpose": "Controlled export/drop zone for that logo."
+    },
+    {
+      "path": "Data\\Shared",
+      "purpose": "Shared non-logo-specific data required by the app."
+    },
+    {
+      "path": "Shares",
+      "purpose": "Published UNC share roots presented to the TERM discovery host."
+    },
+    {
+      "path": "Shares\\RDPApps",
+      "purpose": "Read-only share target for client binaries and shared app files."
+    },
+    {
+      "path": "Shares\\RDPConfig",
+      "purpose": "Read-mostly share target for centralized config artifacts."
+    },
+    {
+      "path": "Shares\\RDPData",
+      "purpose": "Share target for logo-specific and shared discovery data."
+    },
+    {
+      "path": "Ops",
+      "purpose": "Operational material owned by the discovery team."
+    },
+    {
+      "path": "Ops\\Logs",
+      "purpose": "Installer logs, service logs, and test-run artifacts."
+    },
+    {
+      "path": "Ops\\ProbeOutput",
+      "purpose": "Probe output copied from the TERM discovery host or local DB probe runs."
+    },
+    {
+      "path": "Ops\\Scripts",
+      "purpose": "Operator scripts and one-off remediation helpers stored outside git."
+    },
+    {
+      "path": "Ops\\ConfigExports",
+      "purpose": "Registry exports, ODBC exports, share manifests, and config snapshots."
+    },
+    {
+      "path": "Staging",
+      "purpose": "Controlled ingress and egress area for approved non-production media."
+    },
+    {
+      "path": "Staging\\Inbound",
+      "purpose": "Landing zone for imported installers or data sets before validation."
+    },
+    {
+      "path": "Staging\\Outbound",
+      "purpose": "Prepared exports or evidence bundles leaving the server."
+    },
+    {
+      "path": "Backups",
+      "purpose": "Manual backup and rollback material for discovery testing."
+    },
+    {
+      "path": "Backups\\Manual",
+      "purpose": "Operator-created backups before risky changes."
+    },
+    {
+      "path": "Backups\\Exports",
+      "purpose": "Exported snapshots or recovered copies retained during testing."
+    }
+  ],
+  "shares": [
+    {
+      "name": "RDPAPPS$",
+      "path": "Shares\\RDPApps",
+      "description": "Hidden share for published app binaries and launcher assets."
+    },
+    {
+      "name": "RDPCONFIG$",
+      "path": "Shares\\RDPConfig",
+      "description": "Hidden share for shared RDPWin config files."
+    },
+    {
+      "name": "RDPDATA$",
+      "path": "Shares\\RDPData",
+      "description": "Hidden share for logo data and shared application data."
+    }
+  ]
+}

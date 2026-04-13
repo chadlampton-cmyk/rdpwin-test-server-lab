@@ -1,0 +1,10 @@
+---
+- name: Deploy RDPWin Azure lab via OpenTofu (apply)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  roles:
+    - role: lab_tofu
+      vars:
+        lab_tofu_do_apply: true

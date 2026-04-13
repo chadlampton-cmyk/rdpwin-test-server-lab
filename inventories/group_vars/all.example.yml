@@ -1,0 +1,124 @@
+---
+# Copy this file to all.yml for local use.
+#
+# IMPORTANT:
+# - Do not commit all.yml.
+# - Do not commit secrets.
+# - Apply is disabled by default.
+# - The role writes a temporary ansible.auto.tfvars.json into terraform/ at runtime.
+
+# -------------------------------------------------
+# OpenTofu root
+# -------------------------------------------------
+lab_tofu_tf_dir: "{{ playbook_dir }}/../terraform"
+lab_tofu_bin: "tofu"
+lab_tofu_plan_path: "/tmp/rdpwin-lab.tfplan"
+lab_tofu_expected_subscription_id: ""
+lab_tofu_expected_subscription_name: ""
+
+# -------------------------------------------------
+# Core deployment inputs
+# -------------------------------------------------
+project_name: "rdpwin-test-server-lab"
+location: "centralus"
+environment_name: "discoverytest"
+group: "rdpdiscovery"
+
+# -------------------------------------------------
+# Azure resource naming
+# -------------------------------------------------
+resource_group_name: "rg-rdp-discovery-test"
+vnet_name: "vnet-rdp-discovery-test"
+subnet_name: "snet-rdp-discovery-sessionhosts"
+workspace_name: "ws-rdp-discovery-test"
+host_pool_name: "hp-rdp-discovery-test"
+app_group_name: "rag-rdp-discovery-test"
+
+# -------------------------------------------------
+# Addressing
+# -------------------------------------------------
+vnet_address_space:
+  - "10.210.0.0/16"
+subnet_address_prefixes:
+  - "10.210.10.0/24"
+custom_dns_servers: []
+
+# -------------------------------------------------
+# Session host VM settings
+# -------------------------------------------------
+sessionhost_vm_name: "rdp-discovery-01"
+sessionhost_computer_name: "RDPDISC01"
+sessionhost_vm_size: "Standard_D4ds_v4"
+sessionhost_admin_username: "localadmin"
+sessionhost_admin_password: ""
+
+# Windows Server 2022 is the first discovery host target.
+# Keep these explicit so a Server 2019 comparison can be tested later without
+# patching Terraform.
+sessionhost_image_publisher: "MicrosoftWindowsServer"
+sessionhost_image_offer: "WindowsServer"
+sessionhost_image_sku: "2022-datacenter-azure-edition"
+sessionhost_image_version: "latest"
+
+# -------------------------------------------------
+# DB test server settings
+# -------------------------------------------------
+dbserver_vm_name: "db-test-01"
+dbserver_computer_name: "DBTEST01"
+dbserver_vm_size: "Standard_D4ds_v4"
+dbserver_admin_username: "localadmin"
+dbserver_admin_password: ""
+dbserver_image_publisher: "MicrosoftWindowsServer"
+dbserver_image_offer: "WindowsServer"
+dbserver_image_sku: "2022-datacenter-azure-edition"
+dbserver_image_version: "latest"
+dbserver_enable_aad_login_extension: true
+dbserver_create_data_disk: true
+dbserver_data_disk_size_gb: 256
+dbserver_data_disk_storage_account_type: "StandardSSD_LRS"
+dbserver_bootstrap_root_path: "F:\\RDPDiscovery"
+dbserver_bootstrap_volume_label: "RDPDISCOVERY"
+dbserver_bootstrap_drive_letter: "F"
+dbserver_bootstrap_create_shares: true
+dbserver_bootstrap_share_full_access:
+  - "Administrators"
+dbserver_bootstrap_share_change_access:
+  - "localadmin"
+dbserver_bootstrap_share_read_access: []
+
+# Prefer env var if not set above:
+# export SESSIONHOST_ADMIN_PASSWORD='StrongPasswordHere'
+
+# -------------------------------------------------
+# Lab AVD / host settings
+# -------------------------------------------------
+host_pool_friendly_name: "RDP Discovery Test Host Pool"
+workspace_friendly_name: "RDP Discovery Test Workspace"
+app_group_friendly_name: "RDP Discovery Test RemoteApp"
+remote_application_name: "RDPWin"
+remote_application_friendly_name: "RDPWin"
+remote_application_path: 'C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe'
+enable_public_outbound: true
+enable_aad_login_extension: true
+# Optional Entra object IDs for Azure RBAC on both Windows VMs.
+# Use object IDs for users, groups, or service principals.
+vm_user_login_principal_ids: []
+vm_admin_login_principal_ids: []
+
+# -------------------------------------------------
+# Optional tags
+# -------------------------------------------------
+additional_tags:
+  workload: "rdp-discovery-test"
+  owner: "platform"
+
+# -------------------------------------------------
+# Notes
+# -------------------------------------------------
+# Keep retained backend addresses, VPN notes, and DB01/DB02 targeting decisions
+# in docs or local operator notes until the lab Terraform actually consumes them.
+
+# -------------------------------------------------
+# Safety switch
+# -------------------------------------------------
+lab_tofu_do_apply: false

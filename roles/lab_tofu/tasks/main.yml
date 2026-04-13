@@ -1,0 +1,351 @@
+---
+- name: Resolve effective session host admin password
+  ansible.builtin.set_fact:
+    lab_tofu_effective_sessionhost_admin_password: >-
+      {{
+        (sessionhost_admin_password | default(''))
+        if (sessionhost_admin_password | default('') | length) > 0
+        else lookup('ansible.builtin.env', 'SESSIONHOST_ADMIN_PASSWORD')
+      }}
+
+- name: Resolve effective DB server admin password
+  ansible.builtin.set_fact:
+    lab_tofu_effective_dbserver_admin_password: >-
+      {{
+        (dbserver_admin_password | default(''))
+        if (dbserver_admin_password | default('') | length) > 0
+        else lab_tofu_effective_sessionhost_admin_password
+      }}
+
+- name: Assert required deployment variables are present
+  ansible.builtin.assert:
+    that:
+      - item.value is not none
+      - (item.value | string | length) > 0
+    fail_msg: >-
+      Required variable '{{ item.name }}' is missing or empty.
+      Set it in inventories/group_vars/all.yml and rerun the playbook.
+  loop:
+    - { name: "project_name", value: "{{ project_name | default('') }}" }
+    - { name: "location", value: "{{ location | default('') }}" }
+    - { name: "environment_name", value: "{{ environment_name | default('') }}" }
+    - { name: "group", value: "{{ group | default('') }}" }
+    - { name: "resource_group_name", value: "{{ resource_group_name | default('') }}" }
+    - { name: "vnet_name", value: "{{ vnet_name | default('') }}" }
+    - { name: "subnet_name", value: "{{ subnet_name | default('') }}" }
+    - { name: "workspace_name", value: "{{ workspace_name | default('') }}" }
+    - { name: "host_pool_name", value: "{{ host_pool_name | default('') }}" }
+    - { name: "app_group_name", value: "{{ app_group_name | default('') }}" }
+    - { name: "sessionhost_vm_name", value: "{{ sessionhost_vm_name | default('') }}" }
+    - { name: "sessionhost_computer_name", value: "{{ sessionhost_computer_name | default('') }}" }
+    - { name: "sessionhost_vm_size", value: "{{ sessionhost_vm_size | default('') }}" }
+    - { name: "sessionhost_admin_username", value: "{{ sessionhost_admin_username | default('') }}" }
+    - { name: "dbserver_vm_name", value: "{{ dbserver_vm_name | default('') }}" }
+    - { name: "dbserver_computer_name", value: "{{ dbserver_computer_name | default('') }}" }
+    - { name: "dbserver_vm_size", value: "{{ dbserver_vm_size | default('') }}" }
+    - { name: "dbserver_admin_username", value: "{{ dbserver_admin_username | default('') }}" }
+
+- name: Assert session host admin password is available
+  ansible.builtin.assert:
+    that:
+      - lab_tofu_effective_sessionhost_admin_password | length > 0
+    fail_msg: >-
+      Session host admin password is missing.
+      Set sessionhost_admin_password in inventories/group_vars/all.yml or export
+      SESSIONHOST_ADMIN_PASSWORD before running the playbook.
+
+- name: Assert DB server admin password is available
+  ansible.builtin.assert:
+    that:
+      - lab_tofu_effective_dbserver_admin_password | length > 0
+    fail_msg: >-
+      DB server admin password is missing.
+      Set dbserver_admin_password in inventories/group_vars/all.yml or reuse
+      SESSIONHOST_ADMIN_PASSWORD before running the playbook.
+
+- name: Assert Entra VM login RBAC prerequisites are enabled
+  ansible.builtin.assert:
+    that:
+      - enable_aad_login_extension | default(true) | bool
+      - dbserver_enable_aad_login_extension | default(true) | bool
+    fail_msg: >-
+      Entra VM login principal IDs were provided, but AAD login is disabled on
+      one or both VMs. Enable both login extensions or clear the principal ID
+      lists before running the playbook.
+  when:
+    - (vm_user_login_principal_ids | default([]) | length) > 0 or
+      (vm_admin_login_principal_ids | default([]) | length) > 0
+
+- name: Check required tools are installed
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -lc
+      - "command -v {{ item }}"
+  loop:
+    - az
+    - python3
+    - "{{ lab_tofu_bin | default('tofu') }}"
+  register: lab_tofu_required_tools
+  changed_when: false
+  failed_when: false
+
+- name: Fail when a required tool is missing
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: >-
+      Required tool '{{ item.item }}' was not found in PATH.
+      Install the missing tool and rerun the playbook.
+  loop: "{{ lab_tofu_required_tools.results }}"
+
+- name: Verify Azure CLI is logged in
+  ansible.builtin.command: az account show --output json
+  register: lab_tofu_az_account_show
+  changed_when: false
+  failed_when: false
+
+- name: Fail when Azure CLI is not logged in
+  ansible.builtin.assert:
+    that:
+      - lab_tofu_az_account_show.rc == 0
+    fail_msg: >-
+      Azure CLI is not logged in or the local session is unavailable.
+      Run 'az login' and rerun the playbook.
+
+- name: Get Azure subscription id
+  ansible.builtin.command: az account show --query id -o tsv
+  register: lab_tofu_az_sub_id
+  changed_when: false
+
+- name: Get Azure subscription name
+  ansible.builtin.command: az account show --query name -o tsv
+  register: lab_tofu_az_sub_name
+  changed_when: false
+
+- name: Get Azure tenant id
+  ansible.builtin.command: az account show --query tenantId -o tsv
+  register: lab_tofu_az_tenant_id
+  changed_when: false
+
+- name: Get Azure signed-in identity
+  ansible.builtin.command: az account show --query user.name -o tsv
+  register: lab_tofu_az_identity
+  changed_when: false
+
+- name: Assert Azure subscription matches expected subscription id when provided
+  ansible.builtin.assert:
+    that:
+      - lab_tofu_az_sub_id.stdout == lab_tofu_expected_subscription_id
+    fail_msg: >-
+      Azure CLI is targeting subscription {{ lab_tofu_az_sub_id.stdout }},
+      but expected {{ lab_tofu_expected_subscription_id }}.
+  when: (lab_tofu_expected_subscription_id | default('') | length) > 0
+
+- name: Assert Azure subscription matches expected subscription name when provided
+  ansible.builtin.assert:
+    that:
+      - lab_tofu_az_sub_name.stdout == lab_tofu_expected_subscription_name
+    fail_msg: >-
+      Azure CLI is targeting subscription '{{ lab_tofu_az_sub_name.stdout }}',
+      but expected '{{ lab_tofu_expected_subscription_name }}'.
+  when: (lab_tofu_expected_subscription_name | default('') | length) > 0
+
+- name: Ensure OpenTofu root module directory exists
+  ansible.builtin.stat:
+    path: "{{ lab_tofu_tf_dir }}"
+  register: lab_tofu_tf_dir_stat
+
+- name: Fail if OpenTofu root module directory is missing
+  ansible.builtin.fail:
+    msg: >-
+      OpenTofu root module directory does not exist: {{ lab_tofu_tf_dir }}.
+      Fix 'lab_tofu_tf_dir' and rerun the playbook.
+  when: not lab_tofu_tf_dir_stat.stat.exists
+
+- name: Show deployment context summary
+  ansible.builtin.debug:
+    msg:
+      - "============================================"
+      - "RDPWin Azure Lab Deployment Context"
+      - "============================================"
+      - "Execution mode: {{ 'apply' if (lab_tofu_do_apply | bool) else 'plan' }}"
+      - "Azure subscription: {{ lab_tofu_az_sub_name.stdout }} ({{ lab_tofu_az_sub_id.stdout }})"
+      - "Azure tenant: {{ lab_tofu_az_tenant_id.stdout }}"
+      - "Azure identity: {{ lab_tofu_az_identity.stdout }}"
+      - "Location: {{ location }}"
+      - "Environment: {{ environment_name }}"
+      - "Terraform directory: {{ lab_tofu_tf_dir }}"
+      - "Generated tfvars file: {{ lab_tofu_tfvars_path }}"
+      - "Plan output: {{ lab_tofu_plan_path }}"
+      - "Resource group: {{ resource_group_name }}"
+      - "VNet: {{ vnet_name }}"
+      - "Subnet: {{ subnet_name }}"
+      - "Host pool: {{ host_pool_name }}"
+      - "Workspace: {{ workspace_name }}"
+      - "App group: {{ app_group_name }}"
+      - "Session host VM: {{ sessionhost_vm_name }}"
+      - "Session host size: {{ sessionhost_vm_size }}"
+      - "DB server VM: {{ dbserver_vm_name }}"
+      - "DB server size: {{ dbserver_vm_size }}"
+      - "Public outbound enabled: {{ enable_public_outbound | default(true) | bool }}"
+      - "AAD login extension enabled: {{ enable_aad_login_extension | default(true) | bool }}"
+      - "VM user login principals: {{ vm_user_login_principal_ids | default([]) | length }}"
+      - "VM admin login principals: {{ vm_admin_login_principal_ids | default([]) | length }}"
+      - "============================================"
+
+- name: Build OpenTofu variable map from Ansible inputs
+  ansible.builtin.set_fact:
+    lab_tofu_tfvars:
+      project_name: "{{ project_name }}"
+      location: "{{ location }}"
+      environment_name: "{{ environment_name }}"
+      group: "{{ group }}"
+      resource_group_name: "{{ resource_group_name }}"
+      vnet_name: "{{ vnet_name }}"
+      subnet_name: "{{ subnet_name }}"
+      workspace_name: "{{ workspace_name }}"
+      host_pool_name: "{{ host_pool_name }}"
+      app_group_name: "{{ app_group_name }}"
+      sessionhost_vm_name: "{{ sessionhost_vm_name }}"
+      sessionhost_computer_name: "{{ sessionhost_computer_name }}"
+      sessionhost_vm_size: "{{ sessionhost_vm_size }}"
+      sessionhost_admin_username: "{{ sessionhost_admin_username }}"
+      sessionhost_admin_password: "{{ lab_tofu_effective_sessionhost_admin_password }}"
+      sessionhost_image_publisher: "{{ sessionhost_image_publisher | default('MicrosoftWindowsServer') }}"
+      sessionhost_image_offer: "{{ sessionhost_image_offer | default('WindowsServer') }}"
+      sessionhost_image_sku: "{{ sessionhost_image_sku | default('2022-datacenter-azure-edition') }}"
+      sessionhost_image_version: "{{ sessionhost_image_version | default('latest') }}"
+      dbserver_vm_name: "{{ dbserver_vm_name }}"
+      dbserver_computer_name: "{{ dbserver_computer_name }}"
+      dbserver_vm_size: "{{ dbserver_vm_size }}"
+      dbserver_admin_username: "{{ dbserver_admin_username }}"
+      dbserver_admin_password: "{{ lab_tofu_effective_dbserver_admin_password }}"
+      dbserver_image_publisher: "{{ dbserver_image_publisher | default('MicrosoftWindowsServer') }}"
+      dbserver_image_offer: "{{ dbserver_image_offer | default('WindowsServer') }}"
+      dbserver_image_sku: "{{ dbserver_image_sku | default('2022-datacenter-azure-edition') }}"
+      dbserver_image_version: "{{ dbserver_image_version | default('latest') }}"
+      dbserver_enable_aad_login_extension: "{{ dbserver_enable_aad_login_extension | default(true) | bool }}"
+      dbserver_create_data_disk: "{{ dbserver_create_data_disk | default(true) | bool }}"
+      dbserver_data_disk_size_gb: "{{ dbserver_data_disk_size_gb | default(256) }}"
+      dbserver_data_disk_storage_account_type: "{{ dbserver_data_disk_storage_account_type | default('StandardSSD_LRS') }}"
+      vnet_address_space: "{{ vnet_address_space | default(['10.210.0.0/16']) }}"
+      subnet_address_prefixes: "{{ subnet_address_prefixes | default(['10.210.10.0/24']) }}"
+      custom_dns_servers: "{{ custom_dns_servers | default([]) }}"
+      host_pool_friendly_name: "{{ host_pool_friendly_name | default('RDP Discovery Test Host Pool') }}"
+      workspace_friendly_name: "{{ workspace_friendly_name | default('RDP Discovery Test Workspace') }}"
+      app_group_friendly_name: "{{ app_group_friendly_name | default('RDP Discovery Test RemoteApp') }}"
+      remote_application_name: "{{ remote_application_name | default('RDPWin') }}"
+      remote_application_friendly_name: "{{ remote_application_friendly_name | default('RDPWin') }}"
+      remote_application_path: >-
+        {{
+          remote_application_path
+          | default('C:\\ProgramData\\ResortDataProcessing\\RDPWin\\RDPWin5Client\\RDPWin.exe')
+        }}
+      enable_public_outbound: "{{ enable_public_outbound | default(true) | bool }}"
+      enable_aad_login_extension: "{{ enable_aad_login_extension | default(true) | bool }}"
+      vm_user_login_principal_ids: "{{ vm_user_login_principal_ids | default([]) }}"
+      vm_admin_login_principal_ids: "{{ vm_admin_login_principal_ids | default([]) }}"
+      additional_tags: "{{ additional_tags | default({}) }}"
+
+- name: Write generated OpenTofu tfvars file
+  ansible.builtin.copy:
+    dest: "{{ lab_tofu_tfvars_path }}"
+    mode: "0600"
+    content: "{{ lab_tofu_tfvars | to_nice_json }}"
+
+- name: OpenTofu init
+  ansible.builtin.command:
+    argv:
+      - "{{ lab_tofu_bin | default('tofu') }}"
+      - init
+      - -input=false
+    chdir: "{{ lab_tofu_tf_dir }}"
+  environment:
+    TF_IN_AUTOMATION: "1"
+    ARM_SUBSCRIPTION_ID: "{{ lab_tofu_az_sub_id.stdout }}"
+    ARM_TENANT_ID: "{{ lab_tofu_az_tenant_id.stdout }}"
+  register: lab_tofu_init
+  changed_when: false
+  failed_when: false
+
+- name: Fail when OpenTofu init does not complete
+  ansible.builtin.assert:
+    that:
+      - lab_tofu_init.rc == 0
+    fail_msg: >-
+      OpenTofu init failed in '{{ lab_tofu_tf_dir }}'.
+      Review the init output and rerun.
+
+- name: OpenTofu validate
+  ansible.builtin.command:
+    argv:
+      - "{{ lab_tofu_bin | default('tofu') }}"
+      - validate
+    chdir: "{{ lab_tofu_tf_dir }}"
+  environment:
+    TF_IN_AUTOMATION: "1"
+    ARM_SUBSCRIPTION_ID: "{{ lab_tofu_az_sub_id.stdout }}"
+    ARM_TENANT_ID: "{{ lab_tofu_az_tenant_id.stdout }}"
+  register: lab_tofu_validate
+  changed_when: false
+  failed_when: false
+
+- name: Fail when OpenTofu validate does not complete
+  ansible.builtin.assert:
+    that:
+      - lab_tofu_validate.rc == 0
+    fail_msg: >-
+      OpenTofu validate failed in '{{ lab_tofu_tf_dir }}'.
+      Review the validate output and rerun.
+
+- name: Plan Azure lab infrastructure
+  ansible.builtin.command:
+    argv:
+      - "{{ lab_tofu_bin | default('tofu') }}"
+      - plan
+      - -input=false
+      - "-out={{ lab_tofu_plan_path }}"
+    chdir: "{{ lab_tofu_tf_dir }}"
+  environment:
+    TF_IN_AUTOMATION: "1"
+    ARM_SUBSCRIPTION_ID: "{{ lab_tofu_az_sub_id.stdout }}"
+    ARM_TENANT_ID: "{{ lab_tofu_az_tenant_id.stdout }}"
+  register: lab_tofu_plan
+  changed_when: false
+  failed_when: false
+
+- name: Fail when OpenTofu plan does not complete
+  ansible.builtin.assert:
+    that:
+      - lab_tofu_plan.rc == 0
+    fail_msg: >-
+      OpenTofu plan failed in '{{ lab_tofu_tf_dir }}'.
+      Review the plan output and rerun.
+
+- name: Apply Azure lab infrastructure
+  ansible.builtin.command:
+    argv:
+      - "{{ lab_tofu_bin | default('tofu') }}"
+      - apply
+      - -input=false
+      - -auto-approve
+      - "{{ lab_tofu_plan_path }}"
+    chdir: "{{ lab_tofu_tf_dir }}"
+  environment:
+    TF_IN_AUTOMATION: "1"
+    ARM_SUBSCRIPTION_ID: "{{ lab_tofu_az_sub_id.stdout }}"
+    ARM_TENANT_ID: "{{ lab_tofu_az_tenant_id.stdout }}"
+  register: lab_tofu_apply
+  changed_when: lab_tofu_do_apply | bool
+  failed_when: false
+  when: lab_tofu_do_apply | bool
+
+- name: Fail when OpenTofu apply does not complete
+  ansible.builtin.assert:
+    that:
+      - lab_tofu_apply.rc == 0
+    fail_msg: >-
+      OpenTofu apply failed in '{{ lab_tofu_tf_dir }}'.
+      Review the apply output and rerun.
+  when: lab_tofu_do_apply | bool

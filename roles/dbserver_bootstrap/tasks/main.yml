@@ -1,0 +1,229 @@
+---
+- name: Assert required DB bootstrap variables are present
+  ansible.builtin.assert:
+    that:
+      - item.value is not none
+      - (item.value | string | length) > 0
+    fail_msg: >-
+      Required variable '{{ item.name }}' is missing or empty.
+      Set it in inventories/group_vars/all.yml and rerun the playbook.
+  loop:
+    - { name: "resource_group_name", value: "{{ resource_group_name | default('') }}" }
+    - { name: "dbserver_vm_name", value: "{{ dbserver_vm_name | default('') }}" }
+    - { name: "dbserver_admin_username", value: "{{ dbserver_admin_username | default('') }}" }
+    - { name: "dbserver_bootstrap_root_path", value: "{{ dbserver_bootstrap_root_path | default('') }}" }
+    - { name: "dbserver_bootstrap_volume_label", value: "{{ dbserver_bootstrap_volume_label | default('') }}" }
+    - { name: "dbserver_bootstrap_drive_letter", value: "{{ dbserver_bootstrap_drive_letter | default('') }}" }
+
+- name: Check required local tools are installed for DB bootstrap
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -lc
+      - "command -v {{ item }}"
+  loop:
+    - az
+    - python3
+  register: dbserver_bootstrap_required_tools
+  changed_when: false
+  failed_when: false
+
+- name: Fail when a required local DB bootstrap tool is missing
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: >-
+      Required tool '{{ item.item }}' was not found in PATH.
+      Install the missing tool and rerun the playbook.
+  loop: "{{ dbserver_bootstrap_required_tools.results }}"
+
+- name: Verify Azure CLI is logged in for DB bootstrap
+  ansible.builtin.command: az account show --output json
+  register: dbserver_bootstrap_az_account_show
+  changed_when: false
+  failed_when: false
+
+- name: Fail when Azure CLI is not logged in for DB bootstrap
+  ansible.builtin.assert:
+    that:
+      - dbserver_bootstrap_az_account_show.rc == 0
+    fail_msg: >-
+      Azure CLI is not logged in or the local session is unavailable.
+      Run 'az login' and rerun the playbook.
+
+- name: Verify DB bootstrap layout script exists
+  ansible.builtin.stat:
+    path: "{{ dbserver_bootstrap_script_path }}"
+  register: dbserver_bootstrap_script_stat
+
+- name: Fail if DB bootstrap layout script is missing
+  ansible.builtin.fail:
+    msg: >-
+      DB bootstrap layout script not found: {{ dbserver_bootstrap_script_path }}.
+      Fix the path and rerun the playbook.
+  when: not dbserver_bootstrap_script_stat.stat.exists
+
+- name: Verify DB bootstrap manifest exists
+  ansible.builtin.stat:
+    path: "{{ dbserver_bootstrap_manifest_path }}"
+  register: dbserver_bootstrap_manifest_stat
+
+- name: Fail if DB bootstrap manifest is missing
+  ansible.builtin.fail:
+    msg: >-
+      DB bootstrap manifest not found: {{ dbserver_bootstrap_manifest_path }}.
+      Fix the path and rerun the playbook.
+  when: not dbserver_bootstrap_manifest_stat.stat.exists
+
+- name: Verify target DB VM exists in Azure
+  ansible.builtin.command:
+    argv:
+      - az
+      - vm
+      - show
+      - --resource-group
+      - "{{ resource_group_name }}"
+      - --name
+      - "{{ dbserver_vm_name }}"
+      - --query
+      - id
+      - --output
+      - tsv
+  register: dbserver_bootstrap_vm_show
+  changed_when: false
+  failed_when: false
+
+- name: Fail if target DB VM does not exist
+  ansible.builtin.assert:
+    that:
+      - dbserver_bootstrap_vm_show.rc == 0
+      - dbserver_bootstrap_vm_show.stdout | length > 0
+    fail_msg: >-
+      Azure VM '{{ dbserver_vm_name }}' was not found in resource group
+      '{{ resource_group_name }}'. Deploy the lab first, then rerun the
+      bootstrap playbook.
+
+- name: Build DB bootstrap payload
+  ansible.builtin.set_fact:
+    dbserver_bootstrap_script_content: "{{ lookup('ansible.builtin.file', dbserver_bootstrap_script_path) }}"
+    dbserver_bootstrap_manifest_content: "{{ lookup('ansible.builtin.file', dbserver_bootstrap_manifest_path) }}"
+
+- name: Create temporary file for remote DB bootstrap script
+  ansible.builtin.tempfile:
+    state: file
+    prefix: dbserver-bootstrap-
+    suffix: .ps1
+  register: dbserver_bootstrap_tempfile
+
+- name: Write remote DB bootstrap script
+  ansible.builtin.copy:
+    dest: "{{ dbserver_bootstrap_tempfile.path }}"
+    mode: "0600"
+    content: |
+      $ErrorActionPreference = 'Stop'
+      $ProgressPreference = 'SilentlyContinue'
+      $scriptB64 = '{{ dbserver_bootstrap_script_content | b64encode }}'
+      $manifestB64 = '{{ dbserver_bootstrap_manifest_content | b64encode }}'
+      $layoutScript = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($scriptB64))
+      $manifestText = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($manifestB64))
+      $repoRoot = 'C:\Temp\RDPWinLabBootstrap'
+      $configDir = Join-Path $repoRoot 'config'
+      $scriptsDir = Join-Path $repoRoot 'scripts'
+      foreach ($path in @($repoRoot, $configDir, $scriptsDir)) {
+          New-Item -Path $path -ItemType Directory -Force | Out-Null
+      }
+
+      $manifestPath = Join-Path $configDir 'dbtest01-layout.json'
+      $layoutScriptPath = Join-Path $scriptsDir 'New-DBTEST01Layout.ps1'
+      Set-Content -Path $manifestPath -Value $manifestText -Encoding UTF8 -Force
+      Set-Content -Path $layoutScriptPath -Value $layoutScript -Encoding UTF8 -Force
+
+      $targetDrive = '{{ dbserver_bootstrap_drive_letter }}'
+      $targetRoot = '{{ dbserver_bootstrap_root_path }}'
+      $targetLabel = '{{ dbserver_bootstrap_volume_label }}'
+
+      $existingVolume = Get-Volume -DriveLetter $targetDrive -ErrorAction SilentlyContinue
+      if (-not $existingVolume) {
+          $rawDisks = Get-Disk | Where-Object PartitionStyle -eq 'RAW'
+          if ($rawDisks.Count -eq 0) {
+              throw "No RAW disk was found to initialize for drive letter $targetDrive."
+          }
+
+          $disk = $rawDisks | Sort-Object Size -Descending | Select-Object -First 1
+          Initialize-Disk -Number $disk.Number -PartitionStyle GPT -PassThru |
+              New-Partition -DriveLetter $targetDrive -UseMaximumSize |
+              Format-Volume -FileSystem NTFS -NewFileSystemLabel $targetLabel -Confirm:$false
+      }
+
+      $shareFull = @({{ dbserver_bootstrap_share_full_access | map('to_json') | join(', ') }})
+      $shareChange = @({{ dbserver_bootstrap_share_change_access | map('to_json') | join(', ') }})
+      $shareRead = @({{ dbserver_bootstrap_share_read_access | map('to_json') | join(', ') }})
+
+      $scriptParams = @{
+          ManifestPath = $manifestPath
+          RootPath = $targetRoot
+      }
+
+      if ({{ dbserver_bootstrap_create_shares | bool | ternary('$true', '$false') }}) {
+          $scriptParams['CreateShares'] = $true
+      }
+
+      if ($shareFull.Count -gt 0) {
+          $scriptParams['ShareFullAccess'] = $shareFull
+      }
+
+      if ($shareChange.Count -gt 0) {
+          $scriptParams['ShareChangeAccess'] = $shareChange
+      }
+
+      if ($shareRead.Count -gt 0) {
+          $scriptParams['ShareReadAccess'] = $shareRead
+      }
+
+      & $layoutScriptPath @scriptParams
+
+      Get-Volume -DriveLetter $targetDrive |
+          Select-Object DriveLetter, FileSystemLabel, FileSystem, SizeRemaining, Size |
+          ConvertTo-Json -Depth 3
+
+- name: Show DB bootstrap execution context
+  ansible.builtin.debug:
+    msg:
+      - "============================================"
+      - "DBTEST01 Bootstrap Context"
+      - "============================================"
+      - "Resource group: {{ resource_group_name }}"
+      - "DB server VM: {{ dbserver_vm_name }}"
+      - "Root path: {{ dbserver_bootstrap_root_path }}"
+      - "Drive letter: {{ dbserver_bootstrap_drive_letter }}"
+      - "Create shares: {{ dbserver_bootstrap_create_shares | bool }}"
+      - "============================================"
+
+- name: Run DB bootstrap script through Azure VM Run Command
+  ansible.builtin.command:
+    argv:
+      - az
+      - vm
+      - run-command
+      - invoke
+      - --resource-group
+      - "{{ resource_group_name }}"
+      - --name
+      - "{{ dbserver_vm_name }}"
+      - --command-id
+      - RunPowerShellScript
+      - --scripts
+      - "@{{ dbserver_bootstrap_tempfile.path }}"
+      - --output
+      - json
+  register: dbserver_bootstrap_run_command
+  changed_when: true
+
+- name: Show DB bootstrap result
+  ansible.builtin.debug:
+    var: dbserver_bootstrap_run_command.stdout
+
+- name: Remove temporary DB bootstrap script
+  ansible.builtin.file:
+    path: "{{ dbserver_bootstrap_tempfile.path }}"
+    state: absent

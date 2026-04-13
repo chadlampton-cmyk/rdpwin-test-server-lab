@@ -1,0 +1,8 @@
+---
+- name: Configure DBTEST01 after Azure deployment
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  roles:
+    - role: dbserver_bootstrap

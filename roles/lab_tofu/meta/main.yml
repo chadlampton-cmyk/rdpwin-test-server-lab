@@ -1,0 +1,8 @@
+---
+galaxy_info:
+  role_name: lab_tofu
+  author: OpenAI
+  description: Ansible wrapper for the RDPWin Azure lab OpenTofu workflow
+  license: MIT
+  min_ansible_version: "2.17"
+dependencies: []

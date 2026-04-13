@@ -1,0 +1,93 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy the RDPWin Azure lab using OpenTofu
+    options:
+      lab_tofu_tf_dir:
+        type: str
+        required: false
+      lab_tofu_bin:
+        type: str
+        required: false
+        default: tofu
+      lab_tofu_do_apply:
+        type: bool
+        required: false
+        default: false
+      lab_tofu_plan_path:
+        type: str
+        required: false
+      lab_tofu_expected_subscription_id:
+        type: str
+        required: false
+      lab_tofu_expected_subscription_name:
+        type: str
+        required: false
+      project_name:
+        type: str
+        required: true
+      location:
+        type: str
+        required: true
+      environment_name:
+        type: str
+        required: true
+      group:
+        type: str
+        required: true
+      resource_group_name:
+        type: str
+        required: true
+      vnet_name:
+        type: str
+        required: true
+      subnet_name:
+        type: str
+        required: true
+      workspace_name:
+        type: str
+        required: true
+      host_pool_name:
+        type: str
+        required: true
+      app_group_name:
+        type: str
+        required: true
+      sessionhost_vm_name:
+        type: str
+        required: true
+      sessionhost_computer_name:
+        type: str
+        required: true
+      sessionhost_vm_size:
+        type: str
+        required: true
+      sessionhost_admin_username:
+        type: str
+        required: true
+      sessionhost_admin_password:
+        type: str
+        required: false
+      dbserver_vm_name:
+        type: str
+        required: true
+      dbserver_computer_name:
+        type: str
+        required: true
+      dbserver_vm_size:
+        type: str
+        required: true
+      dbserver_admin_username:
+        type: str
+        required: true
+      dbserver_admin_password:
+        type: str
+        required: false
+      vm_user_login_principal_ids:
+        type: list
+        elements: str
+        required: false
+      vm_admin_login_principal_ids:
+        type: list
+        elements: str
+        required: false

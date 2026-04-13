@@ -1,0 +1,12 @@
+---
+dbserver_bootstrap_root_path: "F:\\RDPDiscovery"
+dbserver_bootstrap_volume_label: "RDPDISCOVERY"
+dbserver_bootstrap_drive_letter: "F"
+dbserver_bootstrap_create_shares: true
+dbserver_bootstrap_share_full_access:
+  - "Administrators"
+dbserver_bootstrap_share_change_access:
+  - "{{ dbserver_admin_username | default('localadmin') }}"
+dbserver_bootstrap_share_read_access: []
+dbserver_bootstrap_script_path: "{{ playbook_dir }}/../scripts/New-DBTEST01Layout.ps1"
+dbserver_bootstrap_manifest_path: "{{ playbook_dir }}/../config/dbtest01-layout.json"

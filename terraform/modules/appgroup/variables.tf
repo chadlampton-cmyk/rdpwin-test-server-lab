@@ -1,0 +1,9 @@
+variable "resource_group_name" { type = string }
+variable "location" { type = string }
+variable "host_pool_id" { type = string }
+variable "app_group_name" { type = string }
+variable "app_group_friendly_name" { type = string }
+variable "remote_application_name" { type = string }
+variable "remote_application_friendly_name" { type = string }
+variable "remote_application_path" { type = string }
+variable "tags" { type = map(string) }

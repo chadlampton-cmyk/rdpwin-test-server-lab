@@ -1,0 +1,45 @@
+---
+name: Terraform Checks
+
+'on':
+  pull_request:
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-checks.yml"
+  workflow_dispatch: {}
+
+jobs:
+  tofu-validate-and-tflint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+
+      - name: Tofu Init (no backend)
+        working-directory: terraform
+        run: tofu init -backend=false
+
+      - name: Tofu Fmt (check)
+        working-directory: terraform
+        run: tofu fmt -check -recursive
+
+      - name: Tofu Validate
+        working-directory: terraform
+        run: tofu validate
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: TFLint Init
+        working-directory: terraform
+        run: tflint --init
+
+      - name: TFLint (recursive)
+        working-directory: terraform
+        run: tflint --recursive

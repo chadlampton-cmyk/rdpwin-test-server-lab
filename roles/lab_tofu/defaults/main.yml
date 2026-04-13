@@ -1,0 +1,8 @@
+---
+lab_tofu_tf_dir: "{{ playbook_dir }}/../terraform"
+lab_tofu_bin: "tofu"
+lab_tofu_do_apply: false
+lab_tofu_plan_path: "/tmp/rdpwin-lab.tfplan"
+lab_tofu_tfvars_path: "{{ lab_tofu_tf_dir }}/ansible.auto.tfvars.json"
+lab_tofu_expected_subscription_id: ""
+lab_tofu_expected_subscription_name: ""

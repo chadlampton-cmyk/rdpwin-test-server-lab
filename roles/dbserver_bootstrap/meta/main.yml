@@ -1,0 +1,7 @@
+---
+galaxy_info:
+  author: OpenAI Codex
+  description: Bootstrap the DBTEST01 Windows VM through Azure VM Run Command.
+  license: MIT
+  min_ansible_version: "2.15"
+dependencies: []
