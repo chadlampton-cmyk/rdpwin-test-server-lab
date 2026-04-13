@@ -100,8 +100,14 @@ remote_application_friendly_name: "RDPWin"
 remote_application_path: 'C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe'
 enable_public_outbound: true
 enable_aad_login_extension: true
-# Optional Entra object IDs for Azure RBAC on both Windows VMs.
-# Use object IDs for users, groups, or service principals.
+# Optional Entra principals for Azure RBAC on both Windows VMs.
+# Use friendly identifiers here when possible:
+# - user UPN, such as user@example.com
+# - exact group display name
+# - service principal app ID or object ID
+vm_user_login_principals: []
+vm_admin_login_principals: []
+# Raw object IDs are also supported when you want to bypass name lookup.
 vm_user_login_principal_ids: []
 vm_admin_login_principal_ids: []
 

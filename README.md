@@ -160,6 +160,15 @@ ansible-playbook playbooks/plan_lab.yml
 Optional Entra VM login RBAC example:
 
 ```yaml
+vm_user_login_principals:
+  - "user@example.com"
+vm_admin_login_principals:
+  - "RDP Discovery Admins"
+```
+
+If you already have raw object IDs, those still work:
+
+```yaml
 vm_user_login_principal_ids:
   - "11111111-1111-1111-1111-111111111111"
 vm_admin_login_principal_ids:

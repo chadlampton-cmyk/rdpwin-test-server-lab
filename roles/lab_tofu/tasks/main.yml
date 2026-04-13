@@ -69,12 +69,12 @@
       - enable_aad_login_extension | default(true) | bool
       - dbserver_enable_aad_login_extension | default(true) | bool
     fail_msg: >-
-      Entra VM login principal IDs were provided, but AAD login is disabled on
-      one or both VMs. Enable both login extensions or clear the principal ID
-      lists before running the playbook.
+      Entra VM login principals were provided, but AAD login is disabled on one
+      or both VMs. Enable both login extensions or clear the principal lists
+      before running the playbook.
   when:
-    - (vm_user_login_principal_ids | default([]) | length) > 0 or
-      (vm_admin_login_principal_ids | default([]) | length) > 0
+    - (lab_tofu_effective_vm_user_login_principal_ids | default([]) | length) > 0 or
+      (lab_tofu_effective_vm_admin_login_principal_ids | default([]) | length) > 0
 
 - name: Check required tools are installed
   ansible.builtin.command:
@@ -133,6 +133,105 @@
   register: lab_tofu_az_identity
   changed_when: false
 
+- name: Resolve requested VM user login principals by name
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        principal="${TARGET_PRINCIPAL}"
+        if resolved_id="$(az ad user show --id "${principal}" --query id -o tsv 2>/dev/null)" && [ -n "${resolved_id}" ]; then
+          printf '%s\t%s\t%s\n' "${principal}" "user" "${resolved_id}"
+        elif resolved_id="$(az ad group show --group "${principal}" --query id -o tsv 2>/dev/null)" && [ -n "${resolved_id}" ]; then
+          printf '%s\t%s\t%s\n' "${principal}" "group" "${resolved_id}"
+        elif resolved_id="$(az ad sp show --id "${principal}" --query id -o tsv 2>/dev/null)" && [ -n "${resolved_id}" ]; then
+          printf '%s\t%s\t%s\n' "${principal}" "servicePrincipal" "${resolved_id}"
+        else
+          exit 24
+        fi
+  environment:
+    TARGET_PRINCIPAL: "{{ item }}"
+  loop: "{{ vm_user_login_principals | default([]) }}"
+  register: lab_tofu_vm_user_login_name_resolution
+  changed_when: false
+  failed_when: false
+
+- name: Resolve requested VM admin login principals by name
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        principal="${TARGET_PRINCIPAL}"
+        if resolved_id="$(az ad user show --id "${principal}" --query id -o tsv 2>/dev/null)" && [ -n "${resolved_id}" ]; then
+          printf '%s\t%s\t%s\n' "${principal}" "user" "${resolved_id}"
+        elif resolved_id="$(az ad group show --group "${principal}" --query id -o tsv 2>/dev/null)" && [ -n "${resolved_id}" ]; then
+          printf '%s\t%s\t%s\n' "${principal}" "group" "${resolved_id}"
+        elif resolved_id="$(az ad sp show --id "${principal}" --query id -o tsv 2>/dev/null)" && [ -n "${resolved_id}" ]; then
+          printf '%s\t%s\t%s\n' "${principal}" "servicePrincipal" "${resolved_id}"
+        else
+          exit 24
+        fi
+  environment:
+    TARGET_PRINCIPAL: "{{ item }}"
+  loop: "{{ vm_admin_login_principals | default([]) }}"
+  register: lab_tofu_vm_admin_login_name_resolution
+  changed_when: false
+  failed_when: false
+
+- name: Fail when a VM user login principal name cannot be resolved
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: >-
+      Could not resolve VM user login principal '{{ item.item }}' through Azure
+      AD lookups. Use an exact UPN, group name, service principal identifier, or
+      provide the object ID directly in vm_user_login_principal_ids.
+  loop: "{{ lab_tofu_vm_user_login_name_resolution.results | default([]) }}"
+
+- name: Fail when a VM admin login principal name cannot be resolved
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: >-
+      Could not resolve VM admin login principal '{{ item.item }}' through Azure
+      AD lookups. Use an exact UPN, group name, service principal identifier, or
+      provide the object ID directly in vm_admin_login_principal_ids.
+  loop: "{{ lab_tofu_vm_admin_login_name_resolution.results | default([]) }}"
+
+- name: Build effective VM login principal id lists
+  ansible.builtin.set_fact:
+    lab_tofu_effective_vm_user_login_principal_ids: >-
+      {{
+        (
+          (vm_user_login_principal_ids | default([]))
+          +
+          (
+            lab_tofu_vm_user_login_name_resolution.results
+            | default([])
+            | map(attribute='stdout')
+            | map('regex_replace', '^[^\t]*\t[^\t]*\t', '')
+            | list
+          )
+        ) | unique
+      }}
+    lab_tofu_effective_vm_admin_login_principal_ids: >-
+      {{
+        (
+          (vm_admin_login_principal_ids | default([]))
+          +
+          (
+            lab_tofu_vm_admin_login_name_resolution.results
+            | default([])
+            | map(attribute='stdout')
+            | map('regex_replace', '^[^\t]*\t[^\t]*\t', '')
+            | list
+          )
+        ) | unique
+      }}
+
 - name: Assert Azure subscription matches expected subscription id when provided
   ansible.builtin.assert:
     that:
@@ -190,8 +289,8 @@
       - "DB server size: {{ dbserver_vm_size }}"
       - "Public outbound enabled: {{ enable_public_outbound | default(true) | bool }}"
       - "AAD login extension enabled: {{ enable_aad_login_extension | default(true) | bool }}"
-      - "VM user login principals: {{ vm_user_login_principal_ids | default([]) | length }}"
-      - "VM admin login principals: {{ vm_admin_login_principal_ids | default([]) | length }}"
+      - "VM user login principals: {{ lab_tofu_effective_vm_user_login_principal_ids | default([]) | length }}"
+      - "VM admin login principals: {{ lab_tofu_effective_vm_admin_login_principal_ids | default([]) | length }}"
       - "============================================"
 
 - name: Build OpenTofu variable map from Ansible inputs
@@ -244,8 +343,8 @@
         }}
       enable_public_outbound: "{{ enable_public_outbound | default(true) | bool }}"
       enable_aad_login_extension: "{{ enable_aad_login_extension | default(true) | bool }}"
-      vm_user_login_principal_ids: "{{ vm_user_login_principal_ids | default([]) }}"
-      vm_admin_login_principal_ids: "{{ vm_admin_login_principal_ids | default([]) }}"
+      vm_user_login_principal_ids: "{{ lab_tofu_effective_vm_user_login_principal_ids | default([]) }}"
+      vm_admin_login_principal_ids: "{{ lab_tofu_effective_vm_admin_login_principal_ids | default([]) }}"
       additional_tags: "{{ additional_tags | default({}) }}"
 
 - name: Write generated OpenTofu tfvars file

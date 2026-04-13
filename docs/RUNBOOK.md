@@ -15,7 +15,8 @@ Confirm:
 - `SESSIONHOST_ADMIN_PASSWORD` is set if not stored in `all.yml`
 - `inventories/group_vars/all.yml` includes the `dbserver_*` and
   `dbserver_bootstrap_*` values if `DBTEST01` will be deployed
-- `vm_user_login_principal_ids` / `vm_admin_login_principal_ids` are set when
+- `vm_user_login_principals` / `vm_admin_login_principals` or raw
+  `vm_user_login_principal_ids` / `vm_admin_login_principal_ids` are set when
   Entra VM login RBAC should be created automatically
 
 Quick checks:

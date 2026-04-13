@@ -83,6 +83,14 @@ argument_specs:
       dbserver_admin_password:
         type: str
         required: false
+      vm_user_login_principals:
+        type: list
+        elements: str
+        required: false
+      vm_admin_login_principals:
+        type: list
+        elements: str
+        required: false
       vm_user_login_principal_ids:
         type: list
         elements: str
