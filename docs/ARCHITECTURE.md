@@ -50,6 +50,15 @@ Additional current constraint:
   instability during testing
 - no supported local GPO was found for “disable left-click Start but keep
   right-click Start”
+- the current `HKLM Run` launcher is not reliable enough across all Entra users
+
+PCI-aligned target state for this architecture:
+
+- separate admin and non-admin identities
+- AVD desktop as the user path
+- deterministic `RDPWin` launch at logon
+- deterministic full logoff on app close
+- auditable control execution
 
 ## Not Managed Here
 

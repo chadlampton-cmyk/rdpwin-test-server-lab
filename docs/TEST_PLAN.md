@@ -30,6 +30,12 @@ Not yet proven:
 Current evidence says pure RemoteApp is not viable for this app, and the active
 test direction is now the desktop-session-shaped model.
 
+Current PCI-alignment direction says that model should use:
+
+- non-admin Entra users only for the user path
+- separate admin identities for maintenance
+- a deterministic logon trigger, not the current unreliable `HKLM Run` method
+
 ## Test Sequence
 
 ### 1. Backend Baseline
@@ -80,6 +86,8 @@ Guardrails from current testing:
 - do not pursue aggressive Start/taskbar restrictions first
 - `Server Manager` suppression and logoff-on-close are acceptable
 - left-click-only Start suppression does not have a clean supported local GPO
+- do not treat the current `HKLM Run` launcher as good enough for the final
+  PCI-aligned control model
 
 ### 4. Validate Session End Behavior
 
@@ -107,6 +115,10 @@ Current known backend findings:
 
 This means the main design decision is settled: keep the desktop model and stop
 treating RemoteApp as the target path.
+
+The next control-design decision is also settled: replace the current launch
+trigger with a more reliable logon-time mechanism before calling this session
+model ready for broader rollout.
 
 ## Evidence To Keep
 

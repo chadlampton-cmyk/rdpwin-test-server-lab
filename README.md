@@ -199,6 +199,29 @@ The next work is validating and refining the desktop-session model, not more
 base infrastructure build-out and not more pure RemoteApp troubleshooting. The
 AVD desktop session that auto-launches `RDPWin` is now the active test model.
 
+## PCI Direction
+
+This lab is now being steered toward a PCI-aligned target design.
+
+That does not mean this repo or lab is claiming PCI DSS compliance. It means
+the active design decisions should support:
+
+- Entra MFA-backed remote access through AVD / Windows App
+- dedicated non-admin user access for the customer-style path
+- strict separation between admin troubleshooting and user access
+- deterministic app launch and full logoff behavior
+- auditable control execution
+
+The current gap is that the machine `Run`-key launcher is not reliable across
+all Entra/AVD users. The next implementation step should therefore replace the
+current launcher trigger with a more reliable logon-time mechanism, such as a
+Scheduled Task.
+
+See:
+
+- `docs/PCI_ALIGNMENT_PLAN.md`
+- `docs/HANDOFF.md`
+
 ## Quickstart
 
 ```bash

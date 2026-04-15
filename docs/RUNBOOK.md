@@ -135,3 +135,6 @@ not the expired Zen license.
    `RDPWin` over pure RemoteApp
 7. do not reintroduce shell-kill or aggressive Start/taskbar lockdown changes
    unless the vendor provides a specific supported requirement
+8. for PCI-aligned implementation, do not rely on the current `HKLM Run`
+   launcher as the final control; replace it with a deterministic logon-time
+   trigger before treating the design as ready

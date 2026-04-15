@@ -97,6 +97,14 @@ Current session-shaping findings to validate:
 - `Server Manager` is suppressed at logon
 - aggressive Start/taskbar restrictions were rolled back
 - `explorer.exe` is intentionally left running
+- current `HKLM Run` launcher behavior is not consistent across all Entra users
+
+PCI-aligned validation should also confirm:
+
+- dedicated non-admin Entra users receive the app-first session behavior
+- admin users do not
+- the chosen logon trigger runs consistently across users
+- the launch/logoff control leaves a usable audit trail
 
 Use:
 

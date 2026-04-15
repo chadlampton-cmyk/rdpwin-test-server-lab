@@ -110,6 +110,25 @@ The active model is now:
 This is closer to the current TERM-server behavior than Bastion, and is more
 realistic than forcing pure RemoteApp if `RDPWin` is not RemoteApp-clean.
 
+## PCI Direction
+
+The lab is now being aligned to a PCI-ready target state.
+
+That is not the same thing as declaring PCI DSS compliance. The active design
+goal is a more defensible control model built around:
+
+- MFA-backed Entra / AVD user access
+- dedicated non-admin users for the app path
+- separate admin access for maintenance
+- deterministic app launch at logon
+- deterministic full logoff on app close
+- auditable control execution
+
+Reference plan:
+
+- `docs/PCI_ALIGNMENT_PLAN.md`
+- `docs/ACCESS_AND_ROUTING_PLAN.md`
+
 ## Current Desktop Session Behavior
 
 `RDPDISC01` now has host-side session shaping applied:
@@ -122,6 +141,11 @@ realistic than forcing pure RemoteApp if `RDPWin` is not RemoteApp-clean.
 - `explorer.exe` remains running because killing or replacing the shell caused
   `RDPWin` instability during testing
 - `Server Manager` is suppressed at logon
+
+Current PCI-relevant gap:
+
+- the current `HKLM\...\Run` launcher is not reliable across all Entra / AVD
+  users and should not be treated as the final compliance-grade control
 
 Applied host-side items:
 
@@ -183,6 +207,9 @@ Files that were updated for the new AVD model:
   - those restrictions were rolled back
   - no supported local GPO was found for “disable left-click Start but keep
     right-click Start”
+  - `HKLM\...\Run` launcher behavior is inconsistent across users:
+    `AzureAD\ChadLampton` logged launcher activity, while
+    `felix.ferdinand@fullsteamhosted.com` did not
 
 ## Next Recommended Work
 
@@ -193,12 +220,19 @@ The next meaningful work is:
 1. keep the desktop model as the primary user path
 2. treat pure RemoteApp as a tested dead end unless new vendor guidance says
    otherwise
-3. keep `explorer.exe` alive and avoid shell replacement or aggressive Start
+3. replace the current `HKLM Run` launcher with a more reliable logon-time
+   trigger, preferably a Scheduled Task
+4. keep `explorer.exe` alive and avoid shell replacement or aggressive Start
    menu lockdown
-4. validate the current desktop auto-launch and full-logoff flow end to end
-5. continue backend/app validation on `DBTEST01` only if a new runtime error
+5. define Entra security groups for per-database routing and treat them as the
+   routing source of truth
+6. build the local routing-broker layer on `RDPDISC01` so users are assigned to
+   a single DB target at launch time
+7. validate the current desktop auto-launch and full-logoff flow end to end
+   with a dedicated non-admin Entra user
+8. continue backend/app validation on `DBTEST01` only if a new runtime error
    appears
-6. document any remaining UX compromises instead of chasing unsupported shell
+9. document any remaining UX compromises instead of chasing unsupported shell
    behavior
 
 ## Probe Guidance
