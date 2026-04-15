@@ -17,6 +17,7 @@ The next test is:
 - can the session behave like an app-first TERM session
 - can `RDPWin` auto-launch cleanly in that desktop session
 - can closing `RDPWin` end the session cleanly
+- can that happen without destabilizing `RDPWin` through shell lockdown
 
 ## Before You Start
 
@@ -59,8 +60,8 @@ Keep these in mind:
 
 - pure `RDPWin` RemoteApp currently fails after logon
 - full desktop session works
-- the likely next implementation step is a desktop session that auto-launches
-  `RDPWin`
+- the Zen license issue was fixed and did not change the RemoteApp result
+- the active path is now the desktop session that auto-launches `RDPWin`
 
 ## Probe Commands
 
@@ -88,9 +89,9 @@ PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -
 
 1. restore desktop entitlement for the test Entra user if needed
 2. enter `RDPDISC01` through Windows App
-3. confirm `RDPWin` still launches manually in the desktop session
-4. implement the least-risk auto-launch path for `RDPWin`
-5. test whether closing `RDPWin` logs off the session
+3. confirm `RDPWin` auto-launches in the desktop session
+4. test whether closing `RDPWin` logs off the session
+5. avoid new shell-kill or Start/taskbar lockdown experiments first
 6. capture every policy, registry, or startup-script change
 
 ## Likely Blockers
@@ -98,7 +99,8 @@ PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -
 - `RDPWin` may assume a full desktop shell
 - app-side credentials or test data may still be incomplete
 - AD-group-driven path selection may still be required later
-- session-logoff behavior may need local policy tuning
+- unsupported Start/taskbar suppression ideas may look attractive but are not a
+  clean supported path
 
 ## If Something Fails
 

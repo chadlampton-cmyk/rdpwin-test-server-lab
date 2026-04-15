@@ -43,6 +43,14 @@ for this lab is therefore:
 - auto-launch `RDPWin`
 - app-like UX on top of a desktop session
 
+Additional current constraint:
+
+- `explorer.exe` should remain running
+- shell replacement and aggressive Start/taskbar restriction attempts caused
+  instability during testing
+- no supported local GPO was found for “disable left-click Start but keep
+  right-click Start”
+
 ## Not Managed Here
 
 - retained Liquid Web VPN connectivity

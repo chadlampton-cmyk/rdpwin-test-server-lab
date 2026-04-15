@@ -110,10 +110,16 @@ enable_aad_login_extension: true
 vm_user_login_principals: []
 vm_admin_login_principals: []
 avd_user_principals: []
+# Prefer the split lists below for new deployments so desktop and RemoteApp
+# access can be granted independently.
+avd_desktop_user_principals: []
+avd_remoteapp_user_principals: []
 # Raw object IDs are also supported when you want to bypass name lookup.
 vm_user_login_principal_ids: []
 vm_admin_login_principal_ids: []
 avd_user_principal_ids: []
+avd_desktop_user_principal_ids: []
+avd_remoteapp_user_principal_ids: []
 enable_desktop_app_group: true
 
 # -------------------------------------------------

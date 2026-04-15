@@ -76,8 +76,27 @@ For `DBTEST01`, validate through Bastion or Azure Run Command as well:
 
 Current expected state:
 
-- `RDPWin` works in a full desktop session
-- pure RemoteApp currently fails after logon
+- `RDPWin` launches from the desktop-shaped AVD session
+- pure RemoteApp still fails after logon
+- the Zen temporary license issue was fixed, but that did not change the
+  RemoteApp failure
+
+Current backend findings to validate:
+
+- `Actian Zen Cloud Server` is running
+- `RDPWin Monitor GDS Reservations` is running
+- the Zen temporary license was directly shown as `Expired` on `2026-04-15`
+- the Zen license was reactivated afterward
+- `Btrieve Error 161` cleared after the license fix
+- RemoteApp still fails, so the license issue was not the RemoteApp root cause
+
+Current session-shaping findings to validate:
+
+- `RDPWin` auto-launches from the desktop session
+- closing `RDPWin` logs off the session
+- `Server Manager` is suppressed at logon
+- aggressive Start/taskbar restrictions were rolled back
+- `explorer.exe` is intentionally left running
 
 Use:
 

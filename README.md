@@ -167,6 +167,23 @@ Current validated operator findings:
 - `RDPDISC01` AVD session-host status is now `Available`
 - pure `RDPWin` RemoteApp launch currently fails after logon, while full desktop
   launch works
+- the active user path is now the desktop app group, not the RemoteApp group
+- desktop-session shaping has been applied on `RDPDISC01` so non-admin users
+  auto-launch `RDPWin` and log off when it closes
+- the temporary Zen license on `DBTEST01` was confirmed expired on
+  `2026-04-15`, then reactivated
+- `Btrieve Error 161` cleared after the Zen license was reactivated
+- a post-license retest proved pure RemoteApp still crashes, so the license was
+  not the root cause of the RemoteApp failure
+- current DB-side findings still worth tracking include:
+  - `Actian Zen Cloud Server` running
+  - `RDPWin Monitor GDS Reservations` running
+  - `RDPWin Monitor` and `RDPWin Monitor GDS` installed but not the primary
+    user-path blocker
+- aggressive Start/taskbar shell restrictions were tested and rolled back
+  because they destabilized `RDPWin`
+- the current stable host-side shaping keeps `explorer.exe` alive, suppresses
+  `Server Manager`, auto-launches `RDPWin`, and logs off when `RDPWin` closes
 - the current Bastion in `rg-rdp-discovery-test` is `Developer` SKU and should
   be treated as the admin path, not the primary user-path test model
 
@@ -178,9 +195,9 @@ Current known installer staging outside git:
 - `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x64.exe`
 - `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x86.exe`
 
-The next work is session-shaping and user-experience discovery, not more base
-infrastructure build-out. The likely next model is an AVD desktop session that
-auto-launches `RDPWin` and behaves like an app session.
+The next work is validating and refining the desktop-session model, not more
+base infrastructure build-out and not more pure RemoteApp troubleshooting. The
+AVD desktop session that auto-launches `RDPWin` is now the active test model.
 
 ## Quickstart
 

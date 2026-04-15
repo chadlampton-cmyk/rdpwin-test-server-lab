@@ -115,7 +115,13 @@ Observed current behavior:
 - the user profile loads
 - the session logs off almost immediately
 
-This means the current blocker is app/session behavior, not AVD brokering.
+Additional proof:
+
+- the Zen temporary license on `DBTEST01` was reactivated
+- pure RemoteApp still crashed afterward
+
+This means the current blocker is app/session behavior, not AVD brokering and
+not the expired Zen license.
 
 ## Current Recommended Operator Flow
 
@@ -127,3 +133,5 @@ This means the current blocker is app/session behavior, not AVD brokering.
    `C:\Temp\Invoke-RDPWinLabProbe.ps1`
 6. for the next implementation step, prefer a desktop session that auto-launches
    `RDPWin` over pure RemoteApp
+7. do not reintroduce shell-kill or aggressive Start/taskbar lockdown changes
+   unless the vendor provides a specific supported requirement

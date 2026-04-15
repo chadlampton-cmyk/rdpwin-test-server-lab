@@ -202,6 +202,16 @@ variable "avd_user_principal_ids" {
   default = []
 }
 
+variable "avd_desktop_user_principal_ids" {
+  type    = list(string)
+  default = []
+}
+
+variable "avd_remoteapp_user_principal_ids" {
+  type    = list(string)
+  default = []
+}
+
 variable "enable_desktop_app_group" {
   type    = bool
   default = true

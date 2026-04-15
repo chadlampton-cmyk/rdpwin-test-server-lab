@@ -65,36 +65,41 @@ Stay in:
   - use `localadmin` for maintenance/troubleshooting
 - AVD / Windows App path:
   - workspace friendly name: `RDP Discovery Test Workspace`
-  - current host pool preferred app group type: `RailApplications`
+  - current host pool preferred app group type: `Desktop`
   - `chad.lampton@fullsteamhosted.com` currently has:
-    - `Desktop Virtualization User` on `rag-rdp-discovery-test`
-    - no desktop entitlement on `dag-rdp-discovery-test`
+    - `Desktop Virtualization User` on `dag-rdp-discovery-test`
+    - no entitlement on `rag-rdp-discovery-test`
 
-This means the current Entra user experience is intentionally app-only, not
-desktop-first.
+This means the current Entra user experience is desktop-first again, with
+desktop-session shaping on the host rather than pure RemoteApp.
 
 ## Most Important Current Limitation
 
-Pure RemoteApp is not yet usable for `RDPWin`.
+Pure RemoteApp is not usable for `RDPWin`, and it is no longer the active test
+path.
 
 Current observed behavior:
 
-- Windows App feed now shows the `RDPWin` RemoteApp correctly
-- selecting the app reaches Windows `Welcome`
+- selecting the pure RemoteApp reaches Windows `Welcome`
 - the user profile loads successfully
 - the session logs off almost immediately afterward
-- `RDPWin` works from a full AVD desktop session, but not as a pure RemoteApp
+- enabling the enhanced RemoteApp shell runtime did not change that outcome
+- a clean retest after the Zen license was reactivated still crashed
+- the current desktop model now launches `RDPWin` at logon for non-admin users
 
 Interpretation:
 
 - Entra login is working
 - AVD brokering is working
 - profile load is working
-- the remaining failure is `RDPWin` behavior in pure RemoteApp mode
+- the Zen license issue was real, but it was not the root cause of the pure
+  RemoteApp crash
+- the remaining work is on the desktop-shaped user experience and any residual
+  backend/app validation, not on proving RemoteApp
 
 ## Working Assumption
 
-The most likely viable model is now:
+The active model is now:
 
 - AVD desktop session for the user path
 - local policy / scripted session shaping on `RDPDISC01`
@@ -104,6 +109,29 @@ The most likely viable model is now:
 
 This is closer to the current TERM-server behavior than Bastion, and is more
 realistic than forcing pure RemoteApp if `RDPWin` is not RemoteApp-clean.
+
+## Current Desktop Session Behavior
+
+`RDPDISC01` now has host-side session shaping applied:
+
+- non-admin users enter through the AVD desktop
+- `RDPWin` auto-launches at Windows logon
+- when `RDPWin` exits, Windows logs off the session
+- disconnected sessions are capped to clean up quickly
+- administrative users keep the normal desktop experience
+- `explorer.exe` remains running because killing or replacing the shell caused
+  `RDPWin` instability during testing
+- `Server Manager` is suppressed at logon
+
+Applied host-side items:
+
+- launcher script:
+  - `C:\ProgramData\RDPWinLab\Start-RDPWinDesktop.ps1`
+- Run key:
+  - `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\RDPWinDesktopLauncher`
+- session policy values:
+  - `fResetBroken = 1`
+  - `MaxDisconnectionTime = 60000`
 
 ## Repo State
 
@@ -138,29 +166,46 @@ Files that were updated for the new AVD model:
   - workspace `ws-rdp-discovery-test` exists
   - desktop group `dag-rdp-discovery-test` exists
   - RemoteApp group `rag-rdp-discovery-test` exists
-  - `RDPWin` is published from
-    `C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe`
+  - current test-user entitlement is desktop-only
 - Event logs confirmed:
   - RDS logon/profile load succeeds for the test user
   - pure RemoteApp session exits immediately after logon
+  - enhanced RemoteApp shell runtime did not fix the pure RemoteApp failure
+- DB-side checks confirmed:
+  - `Actian Zen Cloud Server` is running on `DBTEST01`
+  - `RDPWin Monitor GDS Reservations` is running
+  - the temporary Zen license was directly queried and shown as `Expired` on
+    `2026-04-15`
+  - the Zen license was reactivated and `Btrieve Error 161` cleared
+  - RemoteApp still crashes after the license fix
+- UX shaping checks confirmed:
+  - shell-kill and aggressive Start/taskbar restrictions destabilized `RDPWin`
+  - those restrictions were rolled back
+  - no supported local GPO was found for “disable left-click Start but keep
+    right-click Start”
 
 ## Next Recommended Work
 
-Do not spend time on more Terraform scaffolding first.
+Do not spend time on more AVD presentation changes first.
 
 The next meaningful work is:
 
-1. restore desktop entitlement temporarily for the test Entra user
-2. validate the AVD desktop path again through Windows App
-3. configure `RDPDISC01` to auto-launch `RDPWin` at user logon
-4. shape the desktop session to behave like an app session
-5. add logoff behavior when `RDPWin` closes
-6. only revisit pure RemoteApp later if the desktop-shaped model is insufficient
+1. keep the desktop model as the primary user path
+2. treat pure RemoteApp as a tested dead end unless new vendor guidance says
+   otherwise
+3. keep `explorer.exe` alive and avoid shell replacement or aggressive Start
+   menu lockdown
+4. validate the current desktop auto-launch and full-logoff flow end to end
+5. continue backend/app validation on `DBTEST01` only if a new runtime error
+   appears
+6. document any remaining UX compromises instead of chasing unsupported shell
+   behavior
 
 ## Probe Guidance
 
 The probe remains useful for install/config drift checks, but it is not the
-current blocker. The current blocker is session behavior after AVD sign-in.
+current blocker. The main open work is validating the stable desktop-shaped user
+path and only chasing backend state again if a new runtime error appears.
 
 Probe path on the Windows host:
 

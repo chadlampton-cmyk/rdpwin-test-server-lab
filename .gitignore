@@ -17,3 +17,4 @@ terraform/terraform.tfvars
 terraform/terraform.tfvars.json
 terraform/ansible.auto.tfvars.json
 .ansible/
+docs/TOMORROW_TEST_CHECKLIST.md
