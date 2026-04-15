@@ -33,9 +33,12 @@ module "appgroup" {
   host_pool_id                     = module.hostpool.host_pool_id
   app_group_name                   = var.app_group_name
   app_group_friendly_name          = var.app_group_friendly_name
+  desktop_app_group_name           = var.desktop_app_group_name
+  desktop_app_group_friendly_name  = var.desktop_app_group_friendly_name
   remote_application_name          = var.remote_application_name
   remote_application_friendly_name = var.remote_application_friendly_name
   remote_application_path          = var.remote_application_path
+  enable_desktop_app_group         = var.enable_desktop_app_group
   tags                             = local.tags
 }
 
@@ -45,7 +48,10 @@ module "workspace" {
   location            = var.location
   workspace_name      = var.workspace_name
   friendly_name       = var.workspace_friendly_name
-  app_group_id        = module.appgroup.app_group_id
+  app_group_ids       = compact([
+    module.appgroup.remoteapp_group_id,
+    module.appgroup.desktop_group_id
+  ])
   tags                = local.tags
 }
 
@@ -91,6 +97,14 @@ module "dbserver" {
 
 resource "azurerm_role_assignment" "vm_login" {
   for_each = local.vm_login_assignments
+
+  scope                = each.value.scope
+  role_definition_name = each.value.role_name
+  principal_id         = each.value.principal_id
+}
+
+resource "azurerm_role_assignment" "avd_user" {
+  for_each = local.avd_user_assignments
 
   scope                = each.value.scope
   role_definition_name = each.value.role_name

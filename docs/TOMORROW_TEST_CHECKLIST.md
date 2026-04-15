@@ -4,33 +4,33 @@
 
 This is the short operator checklist for the next `RDPWin` lab session.
 
-Use this when the goal is to run the test cleanly without spending time
+Use it when the goal is to continue from the current repaired AVD state without
 rediscovering context during the session.
 
 ## What Tomorrow Is Trying To Prove
 
-Tomorrow is not just an installer test.
+The next test is no longer “can we publish pure RemoteApp.”
 
-It is a controlled check of both:
+The next test is:
 
-- Windows/session-host access on `RDPDISC01`
-- application/backend/share access between `RDPDISC01` and `DBTEST01`
-
-The environment is only useful if both layers work.
+- can a user enter `RDPDISC01` through Windows App / AVD
+- can the session behave like an app-first TERM session
+- can `RDPWin` auto-launch cleanly in that desktop session
+- can closing `RDPWin` end the session cleanly
 
 ## Before You Start
 
 Confirm these are still true:
 
-- `RDPDISC01` exists and is reachable through the current admin path
+- `RDPDISC01` exists and is `Available` in the AVD host pool
 - `DBTEST01` exists and is running
 - `DBTEST01` still has:
   - `\\DBTEST01\RDPAPPS$`
   - `\\DBTEST01\RDPCONFIG$`
   - `\\DBTEST01\RDPDATA$`
-- the test operator can still access both VMs
-- the install media is still available in:
-  - `/Users/chad.lampton/Documents/RDPInstalls/TermServers/`
+- the test operator can still use:
+  - Windows App for the user path
+  - `localadmin` for the admin path
 - `C:\Temp\Invoke-RDPWinLabProbe.ps1` is present on `RDPDISC01`
 
 ## Preflight On The Servers
@@ -51,26 +51,20 @@ dir \\DBTEST01\RDPCONFIG$
 dir \\DBTEST01\RDPDATA$
 ```
 
-If those fail, stop and resolve that first. Do not start the install sequence
-until backend share access is confirmed.
+If those fail, stop and resolve that first.
 
-## Install Order
+## Current AVD Facts
 
-Current recommended first-pass install order on `RDPDISC01`:
+Keep these in mind:
 
-1. `VC_redist.x64.exe`
-2. `VC_redist.x86.exe`
-3. `CRRuntime_64bit_13_0_39.msi`
-4. `Zen_Patch_Client-16.11.006.000.exe`
-5. `RDPWinMSI_5.6.001.6.msi`
-
-Do not begin with `RDPInterfaces`, `RDPKeyCard`, web-tier packages, or
-server-side `RDPWin` packages unless the first-pass client install fails and
-the failure clearly points there.
+- pure `RDPWin` RemoteApp currently fails after logon
+- full desktop session works
+- the likely next implementation step is a desktop session that auto-launches
+  `RDPWin`
 
 ## Probe Commands
 
-Run the probe on `RDPDISC01` at each milestone.
+Run the probe from `RDPDISC01` only when you need install/config evidence.
 
 Baseline:
 
@@ -78,79 +72,44 @@ Baseline:
 PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
-After Actian/client prerequisites:
-
-```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase AfterActian -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
-```
-
-After `RDPWin` install:
-
-```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase AfterRDPWinInstall -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
-```
-
-After any manual config changes:
+After config changes:
 
 ```powershell
 PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase AfterConfig -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
-Launch smoke test:
+Launch smoke:
 
 ```powershell
 PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase LaunchSmoke -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$' -MonitorRDPWinSeconds 180
 ```
 
-## What To Check After Install
+## Next Session Tasks
 
-On `RDPDISC01`, confirm whether these exist after `RDPWin` install:
-
-- `C:\ProgramData\ResortDataProcessing\RDPWin`
-- `C:\ProgramData\ResortDataProcessing\RDPWin\GroupToServer5.txt`
-- `C:\ProgramData\ResortDataProcessing\RDPWin\RDPWinPath5.txt`
-- `C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe`
-
-Also check:
-
-- installed software entries
-- ODBC drivers and DSNs
-- any new services
-- any shortcuts or launcher files
-
-## Success Criteria
-
-Tomorrow is a successful session if you leave with answers to these:
-
-- does the fresh host install the client prerequisites cleanly
-- does the fresh host install `RDPWin` cleanly
-- does `RDPWin.exe` exist in the expected path
-- does first launch work at all
-- if launch fails, is the blocker clearly install, config, auth, DB, or share
-  related
+1. restore desktop entitlement for the test Entra user if needed
+2. enter `RDPDISC01` through Windows App
+3. confirm `RDPWin` still launches manually in the desktop session
+4. implement the least-risk auto-launch path for `RDPWin`
+5. test whether closing `RDPWin` logs off the session
+6. capture every policy, registry, or startup-script change
 
 ## Likely Blockers
 
-The main risks are now application-side, not Azure-side:
-
-- missing config files
-- missing ODBC or Actian details
-- backend shares exist but required files are not present
-- AD-group-driven path selection is still needed for first successful launch
-- app-side credentials or test data are incomplete
+- `RDPWin` may assume a full desktop shell
+- app-side credentials or test data may still be incomplete
+- AD-group-driven path selection may still be required later
+- session-logoff behavior may need local policy tuning
 
 ## If Something Fails
 
 Record the exact failure immediately:
 
 - screenshot
-- exact installer name and version
-- exact command used
+- exact Windows App behavior
 - exact error text
-- which phase failed
-- whether the failure is before launch, during login, or after backend contact
-
-Do not rely on memory after the session.
+- whether the failure is before logon, after `Welcome`, at `RDPWin` launch, or
+  after app sign-in
+- exact server-side change made before the failure
 
 ## Related Notes
 

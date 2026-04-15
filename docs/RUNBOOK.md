@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the operator flow for the Azure-hosted RDPWin lab.
+This document defines the operator flow for the Azure-hosted `RDPWin` lab.
 
 ## Before You Start
 
@@ -15,9 +15,6 @@ Confirm:
 - `SESSIONHOST_ADMIN_PASSWORD` is set if not stored in `all.yml`
 - `inventories/group_vars/all.yml` includes the `dbserver_*` and
   `dbserver_bootstrap_*` values if `DBTEST01` will be deployed
-- `vm_user_login_principals` / `vm_admin_login_principals` or raw
-  `vm_user_login_principal_ids` / `vm_admin_login_principal_ids` are set when
-  Entra VM login RBAC should be created automatically
 
 Quick checks:
 
@@ -56,8 +53,9 @@ Expected behavior:
 - `tofu validate`
 - `tofu plan`
 - `tofu apply`
-- Entra VM login role assignments when principal IDs are configured
-- create both Windows VMs with `AADLoginForWindows` enabled when configured
+- VM login RBAC assignments when principal IDs are configured
+- AVD user assignments when AVD user principal IDs are configured
+- both app groups associated to the workspace when enabled
 
 ## After Deployment
 
@@ -76,35 +74,56 @@ Expected behavior:
 - creates the `F:\RDPDiscovery` folder tree
 - creates the hidden SMB shares when enabled
 
-Then use the Windows-side probe on the session host after you can reach it through Bastion:
-
-```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
-```
-
-Then continue with Actian install, RDPWin install, config, and launch smoke testing.
-
 ## Current Lab Status
 
 Current deployed state in `platform-sandbox`:
 
 - session host VM: `rdp-discovery-01` / `RDPDISC01`
-- session host `AADLoginForWindows` extension: enabled by Terraform for Entra VM sign-in
 - DB backend VM: `db-test-01` / `DBTEST01`
 - DB backend private IP: `10.210.10.5`
 - DB backend data root: `F:\RDPDiscovery`
-- DB backend power state: running
-- DB backend `AADLoginForWindows` extension: succeeded
-- `RDPDISC01` can browse `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and `\\DBTEST01\RDPDATA$`
-- Entra VM login RBAC for `chad.lampton@fullsteamhosted.com` is present on both VMs
-- lab Bastion is currently `Developer` SKU, so native-client/tunnel workflows should not be assumed available
+- `RDPDISC01` can browse `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and
+  `\\DBTEST01\RDPDATA$`
+- both VMs have `AADLoginForWindows` in succeeded state
+- VM login RBAC for `chad.lampton@fullsteamhosted.com` is present on both VMs
+- workspace: `RDP Discovery Test Workspace`
+- app groups:
+  - `RDP Discovery Test RemoteApp`
+  - `RDP Discovery Test Desktop`
+- session host AVD status:
+  - `Available`
+  - `updateState: Succeeded`
 
-Current recommended operator flow:
+## Current Access Model
 
-1. confirm Entra sign-in RBAC on both VMs
-2. verify UNC access from `RDPDISC01` to `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and `\\DBTEST01\RDPDATA$`
-3. run the `Baseline` probe on `RDPDISC01` against `DBTEST01` with explicit `-SharePaths`
-4. install the terminal-side prerequisites from `/Users/chad.lampton/Documents/RDPInstalls/TermServers/`
-5. rerun probe as `AfterActian`
-6. install `RDPWinMSI_5.6.001.6.msi`
-7. rerun probe as `AfterRDPWinInstall`
+- admin access:
+  - use Bastion/direct admin path with `localadmin`
+- user test access:
+  - use Windows App / AVD
+
+Do not treat Bastion as the primary user-validation path. Bastion is now the
+admin path only.
+
+## Current AVD Limitation
+
+`RDPWin` works in a full desktop session on `RDPDISC01`, but fails when exposed
+as a pure RemoteApp.
+
+Observed current behavior:
+
+- selecting the `RDPWin` RemoteApp reaches Windows `Welcome`
+- the user profile loads
+- the session logs off almost immediately
+
+This means the current blocker is app/session behavior, not AVD brokering.
+
+## Current Recommended Operator Flow
+
+1. confirm `RDPDISC01` AVD session-host status is still `Available`
+2. confirm UNC access from `RDPDISC01` to `DBTEST01`
+3. use Windows App for user-path testing
+4. use Bastion only for admin repair/troubleshooting
+5. if testing install/config drift, run the probe from the host:
+   `C:\Temp\Invoke-RDPWinLabProbe.ps1`
+6. for the next implementation step, prefer a desktop session that auto-launches
+   `RDPWin` over pure RemoteApp

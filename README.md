@@ -55,10 +55,11 @@ This repo includes a Windows-side probe:
 
 Use it on the test server before install, after Actian install, after `RDPWin` install, after config, and around a manual launch smoke test.
 
-Example:
+Copy `scripts/Invoke-RDPWinLabProbe.ps1` to `C:\Temp\Invoke-RDPWinLabProbe.ps1`
+on the Windows host, then run:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
+PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
 See:
@@ -87,6 +88,7 @@ This automation now builds the Azure lab platform:
 - one VNet/subnet
 - one pooled AVD host pool
 - one RemoteApp application group with an `RDPWin` app entry
+- one desktop application group for desktop-session testing
 - one workspace
 - one Windows Server 2022 discovery session host
 - one Windows Server 2022 `DBTEST01` backend server
@@ -123,11 +125,14 @@ Ansible-driven operator flow:
 - `playbooks/configure_dbserver.yml`
 - `roles/dbserver_bootstrap/`
 
-Current operator access path for the deployed lab host is Bastion admin access. RemoteApp publishing exists for the AVD control plane, but Windows-side discovery work should assume Bastion for host administration.
+Current operator access model is split:
+
+- Bastion/direct admin path for maintenance with `localadmin`
+- Windows App / AVD path for end-user-style testing
 
 ## Current Deployed State
 
-As of 2026-04-13, the Azure lab has been deployed in `platform-sandbox` and includes:
+As of 2026-04-15, the Azure lab has been deployed in `platform-sandbox` and includes:
 
 - `rdp-discovery-01` / `RDPDISC01`
 - `db-test-01` / `DBTEST01`
@@ -138,6 +143,8 @@ As of 2026-04-13, the Azure lab has been deployed in `platform-sandbox` and incl
 - on the same VNet/subnet as `DBTEST01`
 - provisioned with the `AADLoginForWindows` extension
 - registered to the AVD host pool
+- repaired to support AVD session-host health by installing the missing
+  `Remote Desktop Session Host` role
 
 `DBTEST01` is currently:
 
@@ -154,7 +161,14 @@ Current validated operator findings:
 - `RDPDISC01` can reach `\\DBTEST01\RDPCONFIG$`
 - `RDPDISC01` can reach `\\DBTEST01\RDPDATA$`
 - Entra VM login RBAC has been applied for `chad.lampton@fullsteamhosted.com` on both VMs
-- the current Bastion in `rg-rdp-discovery-test` is `Developer` SKU, so terminal/native-client tunnel workflows should not be treated as available in this lab without a paid SKU change
+- AVD workspace now exposes both:
+  - `RDP Discovery Test RemoteApp`
+  - `RDP Discovery Test Desktop`
+- `RDPDISC01` AVD session-host status is now `Available`
+- pure `RDPWin` RemoteApp launch currently fails after logon, while full desktop
+  launch works
+- the current Bastion in `rg-rdp-discovery-test` is `Developer` SKU and should
+  be treated as the admin path, not the primary user-path test model
 
 Current known installer staging outside git:
 
@@ -164,9 +178,9 @@ Current known installer staging outside git:
 - `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x64.exe`
 - `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x86.exe`
 
-The next work is Windows-side validation and application discovery, not more
-base infrastructure build-out. The first identity automation step, placing both
-test servers into the Entra VM sign-in path, is already part of the deploy.
+The next work is session-shaping and user-experience discovery, not more base
+infrastructure build-out. The likely next model is an AVD desktop session that
+auto-launches `RDPWin` and behaves like an app session.
 
 ## Quickstart
 

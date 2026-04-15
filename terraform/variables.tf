@@ -38,6 +38,10 @@ variable "app_group_name" {
   type = string
 }
 
+variable "desktop_app_group_name" {
+  type = string
+}
+
 variable "sessionhost_vm_name" {
   type = string
 }
@@ -157,6 +161,10 @@ variable "app_group_friendly_name" {
   type = string
 }
 
+variable "desktop_app_group_friendly_name" {
+  type = string
+}
+
 variable "remote_application_name" {
   type = string
 }
@@ -187,6 +195,16 @@ variable "vm_user_login_principal_ids" {
 variable "vm_admin_login_principal_ids" {
   type    = list(string)
   default = []
+}
+
+variable "avd_user_principal_ids" {
+  type    = list(string)
+  default = []
+}
+
+variable "enable_desktop_app_group" {
+  type    = bool
+  default = true
 }
 
 variable "additional_tags" {

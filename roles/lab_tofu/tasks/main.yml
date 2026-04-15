@@ -181,6 +181,30 @@
   changed_when: false
   failed_when: false
 
+- name: Resolve requested AVD user principals by name
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        principal="${TARGET_PRINCIPAL}"
+        if resolved_id="$(az ad user show --id "${principal}" --query id -o tsv 2>/dev/null)" && [ -n "${resolved_id}" ]; then
+          printf '%s\t%s\t%s\n' "${principal}" "user" "${resolved_id}"
+        elif resolved_id="$(az ad group show --group "${principal}" --query id -o tsv 2>/dev/null)" && [ -n "${resolved_id}" ]; then
+          printf '%s\t%s\t%s\n' "${principal}" "group" "${resolved_id}"
+        elif resolved_id="$(az ad sp show --id "${principal}" --query id -o tsv 2>/dev/null)" && [ -n "${resolved_id}" ]; then
+          printf '%s\t%s\t%s\n' "${principal}" "servicePrincipal" "${resolved_id}"
+        else
+          exit 24
+        fi
+  environment:
+    TARGET_PRINCIPAL: "{{ item }}"
+  loop: "{{ avd_user_principals | default([]) }}"
+  register: lab_tofu_avd_user_name_resolution
+  changed_when: false
+  failed_when: false
+
 - name: Fail when a VM user login principal name cannot be resolved
   ansible.builtin.assert:
     that:
@@ -200,6 +224,16 @@
       AD lookups. Use an exact UPN, group name, service principal identifier, or
       provide the object ID directly in vm_admin_login_principal_ids.
   loop: "{{ lab_tofu_vm_admin_login_name_resolution.results | default([]) }}"
+
+- name: Fail when an AVD user principal name cannot be resolved
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: >-
+      Could not resolve AVD user principal '{{ item.item }}' through Azure AD
+      lookups. Use an exact UPN, group name, service principal identifier, or
+      provide the object ID directly in avd_user_principal_ids.
+  loop: "{{ lab_tofu_avd_user_name_resolution.results | default([]) }}"
 
 - name: Build effective VM login principal id lists
   ansible.builtin.set_fact:
@@ -224,6 +258,20 @@
           +
           (
             lab_tofu_vm_admin_login_name_resolution.results
+            | default([])
+            | map(attribute='stdout')
+            | map('regex_replace', '^[^\t]*\t[^\t]*\t', '')
+            | list
+          )
+        ) | unique
+      }}
+    lab_tofu_effective_avd_user_principal_ids: >-
+      {{
+        (
+          (avd_user_principal_ids | default([]))
+          +
+          (
+            lab_tofu_avd_user_name_resolution.results
             | default([])
             | map(attribute='stdout')
             | map('regex_replace', '^[^\t]*\t[^\t]*\t', '')
@@ -283,6 +331,7 @@
       - "Host pool: {{ host_pool_name }}"
       - "Workspace: {{ workspace_name }}"
       - "App group: {{ app_group_name }}"
+      - "Desktop app group: {{ desktop_app_group_name | default('') }}"
       - "Session host VM: {{ sessionhost_vm_name }}"
       - "Session host size: {{ sessionhost_vm_size }}"
       - "DB server VM: {{ dbserver_vm_name }}"
@@ -291,6 +340,7 @@
       - "AAD login extension enabled: {{ enable_aad_login_extension | default(true) | bool }}"
       - "VM user login principals: {{ lab_tofu_effective_vm_user_login_principal_ids | default([]) | length }}"
       - "VM admin login principals: {{ lab_tofu_effective_vm_admin_login_principal_ids | default([]) | length }}"
+      - "AVD user principals: {{ lab_tofu_effective_avd_user_principal_ids | default([]) | length }}"
       - "============================================"
 
 - name: Build OpenTofu variable map from Ansible inputs
@@ -306,6 +356,7 @@
       workspace_name: "{{ workspace_name }}"
       host_pool_name: "{{ host_pool_name }}"
       app_group_name: "{{ app_group_name }}"
+      desktop_app_group_name: "{{ desktop_app_group_name | default('dag-rdp-discovery-test') }}"
       sessionhost_vm_name: "{{ sessionhost_vm_name }}"
       sessionhost_computer_name: "{{ sessionhost_computer_name }}"
       sessionhost_vm_size: "{{ sessionhost_vm_size }}"
@@ -334,6 +385,7 @@
       host_pool_friendly_name: "{{ host_pool_friendly_name | default('RDP Discovery Test Host Pool') }}"
       workspace_friendly_name: "{{ workspace_friendly_name | default('RDP Discovery Test Workspace') }}"
       app_group_friendly_name: "{{ app_group_friendly_name | default('RDP Discovery Test RemoteApp') }}"
+      desktop_app_group_friendly_name: "{{ desktop_app_group_friendly_name | default('RDP Discovery Test Desktop') }}"
       remote_application_name: "{{ remote_application_name | default('RDPWin') }}"
       remote_application_friendly_name: "{{ remote_application_friendly_name | default('RDPWin') }}"
       remote_application_path: >-
@@ -343,8 +395,10 @@
         }}
       enable_public_outbound: "{{ enable_public_outbound | default(true) | bool }}"
       enable_aad_login_extension: "{{ enable_aad_login_extension | default(true) | bool }}"
+      enable_desktop_app_group: "{{ enable_desktop_app_group | default(true) | bool }}"
       vm_user_login_principal_ids: "{{ lab_tofu_effective_vm_user_login_principal_ids | default([]) }}"
       vm_admin_login_principal_ids: "{{ lab_tofu_effective_vm_admin_login_principal_ids | default([]) }}"
+      avd_user_principal_ids: "{{ lab_tofu_effective_avd_user_principal_ids | default([]) }}"
       additional_tags: "{{ additional_tags | default({}) }}"
 
 - name: Write generated OpenTofu tfvars file

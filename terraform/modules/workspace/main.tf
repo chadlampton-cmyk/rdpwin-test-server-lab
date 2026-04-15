@@ -18,6 +18,8 @@ resource "azurerm_virtual_desktop_workspace" "this" {
 }
 
 resource "azurerm_virtual_desktop_workspace_application_group_association" "this" {
+  for_each = toset(var.app_group_ids)
+
   workspace_id         = azurerm_virtual_desktop_workspace.this.id
-  application_group_id = var.app_group_id
+  application_group_id = each.value
 }

@@ -3,110 +3,94 @@
 ## Goal
 
 Prove the smallest repeatable build needed for `RDPWin` on a fresh Windows host
-with an Azure-hosted backend that stays as Entra-centered as possible.
+with an Azure-hosted backend, then shape the user session so it behaves like the
+current TERM-server experience.
 
-This lab is for learning the session-host/application side first. Do not clone
-an existing `TERM` server. Use `DBTEST01` as the temporary Azure backend rather
-than rebuilding retained `DB01` or `DB02`.
+Use `DBTEST01` as the temporary Azure backend rather than rebuilding retained
+`DB01` or `DB02`.
+
+## Current Test Result Summary
+
+Already proven:
+
+- `RDPDISC01` can reach `DBTEST01` over the required UNC/share paths
+- `RDPWin` is installed on `RDPDISC01`
+- `RDPWin` works from a full desktop session
+- AVD access to `RDPDISC01` now works through Windows App
+
+Not yet proven:
+
+- whether `RDPWin` can run cleanly as a pure RemoteApp
+- whether the production-like user experience should instead be:
+  - AVD desktop session
+  - auto-launch `RDPWin`
+  - log off when `RDPWin` closes
+
+Current evidence says pure RemoteApp is failing after logon, so the next test
+direction should favor the desktop-session-shaped model.
 
 ## Test Sequence
 
-### 1. Fresh Host Baseline
+### 1. Backend Baseline
 
-Before installing `RDPWin` or Actian, access the deployed Windows host through Bastion and run the lab probe:
+Before changing user-session behavior, confirm the backend assumptions still
+hold:
 
-```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
-```
+- `DBTEST01` is running
+- `RDPDISC01` can reach:
+  - `\\DBTEST01\RDPAPPS$`
+  - `\\DBTEST01\RDPCONFIG$`
+  - `\\DBTEST01\RDPDATA$`
 
-Capture whether the host is workgroup/domain/Entra joined, which DNS servers it
-uses, whether `DBTEST01` resolves, and whether required backend ports are
-reachable for the approved non-production test path.
-
-Current lab note:
-
-- a manual UNC test from `RDPDISC01` to `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and `\\DBTEST01\RDPDATA$` has already succeeded
-- the probe script was fixed on 2026-04-13 so the installed-software collector no longer fails on uninstall-registry entries without `DisplayName`
-
-### 0. Backend Bootstrap
-
-Before application testing, deploy and bootstrap `DBTEST01`:
-
-```bash
-ansible-playbook playbooks/deploy_lab.yml
-ansible-playbook playbooks/configure_dbserver.yml
-```
-
-Confirm the backend layout exists on `DBTEST01` and that the session host can
-reach the intended UNC paths.
-
-### 2. Actian Client Install
-
-Install the approved Actian / Zen client package for the lab test path.
-
-Current likely terminal-side first-pass install order from local staging:
-
-1. `VC_redist.x64.exe`
-2. `VC_redist.x86.exe`
-3. `CRRuntime_64bit_13_0_39.msi`
-4. `Zen_Patch_Client-16.11.006.000.exe`
-
-Run:
+Run the probe as needed from the Windows host:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase AfterActian -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
+PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
-Capture installed product version, services, ODBC drivers, ODBC DSNs, and connectivity.
+### 2. Desktop Session Validation
 
-If installer files are local on the test host, pass them with `-InstallerPaths` so the output includes size and SHA-256 checksum.
+Use Windows App to enter the AVD desktop session on `RDPDISC01`.
 
-### 3. RDPWin Install
+Confirm:
 
-Install the authoritative `RDPWin` package from an out-of-git location after the correct package is received from the named installer owner.
+- Windows sign-in succeeds
+- `RDPWin` launches manually from the installed path
+- app-side sign-in works as expected
 
-Current likely client package:
+### 3. App-Session Shaping
 
-- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/RDPWinMSI_5.6.001.6.msi`
+Target the current-like user experience:
 
-Run:
+- user signs into Windows App
+- the session lands on `RDPDISC01`
+- `RDPWin` opens automatically
+- the user interacts with `RDPWin`, not the desktop
+- closing `RDPWin` logs off the session
 
-```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase AfterRDPWinInstall -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
-```
+This phase is expected to use local policy, registry, or scripted logon/session
+behavior on `RDPDISC01`.
 
-Confirm whether these exist:
+### 4. Validate Session End Behavior
 
-- `C:\ProgramData\ResortDataProcessing\RDPWin`
-- `C:\ProgramData\ResortDataProcessing\RDPWin\GroupToServer5.txt`
-- `C:\ProgramData\ResortDataProcessing\RDPWin\RDPWinPath5.txt`
-- `C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe`
+Confirm whether closing `RDPWin`:
 
-### 4. Minimum Config
+- logs off the session immediately
+- disconnects the session
+- or leaves the desktop available
 
-Apply only the config needed to make the approved non-production test path work.
-
-Record every manual change in `local/` or `docs/OBSERVATIONS.md` before converting it to automation.
-
-Run:
-
-```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase AfterConfig -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
-```
-
-### 5. First Launch Test
-
-Start the monitor, launch `RDPWin.exe` manually, sign in with the approved Azure test user and app-side test identity if separate, perform a narrow smoke test, close the application, then let the monitor complete:
-
-```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase LaunchSmoke -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$' -MonitorRDPWinSeconds 180
-```
-
-Capture whether login succeeds, which backend is reached, whether obvious errors appear, whether printing can be tested, and what profile or ProgramData files change.
+If the default behavior is wrong, tune it with session policy rather than
+returning to pure RemoteApp first.
 
 ## Evidence To Keep
 
-Keep probe output, screenshots, installer filenames/checksums, manual install commands, and human observations outside git unless they are scrubbed.
+Keep outside git unless scrubbed:
+
+- screenshots
+- Windows App behavior notes
+- installer filenames/checksums
+- probe output
+- any local policy or registry changes made during session-shaping tests
 
 Suggested local-only workspace:
 
@@ -116,12 +100,9 @@ local/
 
 ## Success Criteria
 
-- Fresh host can install the chosen Actian client.
-- Fresh host can install the chosen `RDPWin` package.
-- `RDPWin.exe` launches from the confirmed production-style path.
-- Required config files/settings are identified.
-- Required backend, UNC, DNS, auth, and port dependencies are identified.
-- `DBTEST01` successfully hosts the temporary Azure backend folder/share layout.
-- The approved non-production test identity can attempt a meaningful application login.
-- The team knows whether the test hit `DBTEST01`, a retained path, or another target.
-- A short punch list exists for anything not ready for AVD image automation.
+- `RDPWin` works against the Azure-side backend on `RDPDISC01`
+- the user path is entered through Windows App / AVD
+- the user experience behaves like an app-first term-server session
+- the desktop is no longer the primary user surface
+- session end behavior after closing `RDPWin` is known and documented
+- the resulting configuration is scriptable for future scale-out

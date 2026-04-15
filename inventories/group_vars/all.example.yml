@@ -33,6 +33,7 @@ subnet_name: "snet-rdp-discovery-sessionhosts"
 workspace_name: "ws-rdp-discovery-test"
 host_pool_name: "hp-rdp-discovery-test"
 app_group_name: "rag-rdp-discovery-test"
+desktop_app_group_name: "dag-rdp-discovery-test"
 
 # -------------------------------------------------
 # Addressing
@@ -95,6 +96,7 @@ dbserver_bootstrap_share_read_access: []
 host_pool_friendly_name: "RDP Discovery Test Host Pool"
 workspace_friendly_name: "RDP Discovery Test Workspace"
 app_group_friendly_name: "RDP Discovery Test RemoteApp"
+desktop_app_group_friendly_name: "RDP Discovery Test Desktop"
 remote_application_name: "RDPWin"
 remote_application_friendly_name: "RDPWin"
 remote_application_path: 'C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe'
@@ -107,9 +109,12 @@ enable_aad_login_extension: true
 # - service principal app ID or object ID
 vm_user_login_principals: []
 vm_admin_login_principals: []
+avd_user_principals: []
 # Raw object IDs are also supported when you want to bypass name lookup.
 vm_user_login_principal_ids: []
 vm_admin_login_principal_ids: []
+avd_user_principal_ids: []
+enable_desktop_app_group: true
 
 # -------------------------------------------------
 # Optional tags

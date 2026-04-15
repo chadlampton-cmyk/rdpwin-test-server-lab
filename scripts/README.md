@@ -4,24 +4,25 @@ Windows-side lab helpers for the temporary `RDPWin` test server.
 
 ## RDPWin Lab Probe
 
-Copy the repo or the `scripts/Invoke-RDPWinLabProbe.ps1` file to the test Windows host.
+Copy `scripts/Invoke-RDPWinLabProbe.ps1` to
+`C:\Temp\Invoke-RDPWinLabProbe.ps1` on the test Windows host.
 
 Baseline example:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DB01,DB02
+PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
 ```
 
 After install/config example:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\Invoke-RDPWinLabProbe.ps1 -Phase AfterRDPWinInstall -TargetHosts DB01,DB02 -SharePaths '\\10.35.52.108\RDPNT3571','\\10.35.52.108\RDPNT3803' -InstallerPaths 'C:\Install\RDPWin.msi'
+PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase AfterRDPWinInstall -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$' -InstallerPaths 'C:\Install\RDPWinMSI_5.6.001.6.msi'
 ```
 
 Launch smoke-test monitor example:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\Invoke-RDPWinLabProbe.ps1 -Phase LaunchSmoke -TargetHosts DB01,DB02 -MonitorRDPWinSeconds 180
+PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase LaunchSmoke -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$' -MonitorRDPWinSeconds 180
 ```
 
 By default the probe writes to:

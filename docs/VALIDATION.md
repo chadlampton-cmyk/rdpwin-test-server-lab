@@ -17,19 +17,6 @@ tofu -chdir=terraform validate
 ./.tools/bin/tflint --recursive --chdir terraform
 ```
 
-GitHub Actions also runs:
-
-- Ansible and YAML lint
-- OpenTofu format and validate
-- TFLint
-- tfsec
-
-Notes:
-
-- `ansible-lint` and `yamllint` are expected to run from the repo-local `.venv`
-- `tflint` is expected to run from `./.tools/bin/tflint`
-- avoid `yamllint .` after creating `.venv/`, because it will recurse into tool-installed packages
-
 ## Azure Lab Validation
 
 After apply, validate:
@@ -38,38 +25,46 @@ After apply, validate:
 - VNet and subnet exist
 - host pool exists
 - RemoteApp app group exists
+- desktop app group exists when enabled
 - workspace exists
 - session host VM exists
 - DB server VM exists
 - session host has the `AADLoginForWindows` extension in succeeded state
 - session host is registered to the host pool
-- expected Entra VM login RBAC assignments exist on both VMs
+- session host status is `Available`
+- expected VM login RBAC assignments exist
+- expected AVD user assignments exist
 - `DBTEST01` data disk is online and formatted
 - `DBTEST01` folder/share layout exists
 - `DBTEST01` is running
-- `DBTEST01` has the `AADLoginForWindows` extension in succeeded state
 
 Examples:
 
 ```bash
 az group show --name "<resource-group-name>" -o yaml
-az vm show --resource-group "<resource-group-name>" --name "<sessionhost-vm-name>" -o yaml
-az vm show --resource-group "<resource-group-name>" --name "<dbserver-vm-name>" -o yaml
+az desktopvirtualization hostpool show -g "<resource-group-name>" -n "<host-pool-name>" -o yaml
+az desktopvirtualization applicationgroup list -g "<resource-group-name>" -o yaml
+az desktopvirtualization workspace show -g "<resource-group-name>" -n "<workspace-name>" -o yaml
 az vm extension show --resource-group "<resource-group-name>" --vm-name "<sessionhost-vm-name>" --name "<sessionhost-vm-name>-aadlogin" -o yaml
-az role assignment list --scope "$(az vm show --resource-group "<resource-group-name>" --name "<sessionhost-vm-name>" --query id -o tsv)" -o table
-az vm get-instance-view --resource-group "<resource-group-name>" --name "<dbserver-vm-name>" --query "instanceView.statuses[?starts_with(code, 'PowerState/')].displayStatus | [0]" -o tsv
-az vm extension show --resource-group "<resource-group-name>" --vm-name "<dbserver-vm-name>" --name "<dbserver-vm-name>-aadlogin" -o yaml
-az role assignment list --scope "$(az vm show --resource-group "<resource-group-name>" --name "<dbserver-vm-name>" --query id -o tsv)" -o table
-az resource list --resource-group "<resource-group-name>" --resource-type Microsoft.DesktopVirtualization/hostPools/sessionHosts -o table
+az role assignment list --all --assignee "<user-or-group>" -o table
+az rest --method get --url "https://management.azure.com/<session-host-collection-url>?api-version=2024-04-03" -o yaml
 ```
 
-If the generic Azure resource list does not show the session host cleanly, validate from inside the VM as well:
+## AVD Session Host Validation
 
-- `HKLM:\SOFTWARE\Microsoft\RDInfraAgent` shows `IsRegistered : 1`
-- `HostPoolId` is populated
-- `AgentState : 11`
-- `RdAgent` service is running
-- `RDAgentBootLoader` service is running
+For `RDPDISC01`, confirm:
+
+- `status: Available`
+- `updateState: Succeeded`
+- `SxSStackListenerCheck: HealthCheckSucceeded`
+- `AADJoinedHealthCheck: HealthCheckSucceeded`
+
+Important repair history:
+
+- if the session host becomes `Unavailable` with an SxS stack error, check
+  whether `RDS-RD-Server` is installed on the VM
+
+## DB Server Validation
 
 For `DBTEST01`, validate through Bastion or Azure Run Command as well:
 
@@ -79,7 +74,12 @@ For `DBTEST01`, validate through Bastion or Azure Run Command as well:
 
 ## RDPWin Validation
 
-After the VM is reachable through Bastion, use:
+Current expected state:
+
+- `RDPWin` works in a full desktop session
+- pure RemoteApp currently fails after logon
+
+Use:
 
 - [docs/TEST_PLAN.md](/Users/chad.lampton/Documents/repo/rdpwin-test-server-lab/docs/TEST_PLAN.md)
 - [scripts/Invoke-RDPWinLabProbe.ps1](/Users/chad.lampton/Documents/repo/rdpwin-test-server-lab/scripts/Invoke-RDPWinLabProbe.ps1)

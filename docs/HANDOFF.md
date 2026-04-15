@@ -1,446 +1,176 @@
 # Handoff
 
-Last updated: 2026-04-13.
+Last updated: 2026-04-15.
 
 ## Cold-Start Instruction
 
-Read this file first after reboot. This repo is brand new and is not the production AVD infrastructure repo.
+Read this file first after reboot. This repo is the temporary `RDPWin` lab repo,
+not the production AVD repo.
 
-The next Codex session should stay in:
+Stay in:
 
 `/Users/chad.lampton/Documents/repo/rdpwin-test-server-lab`
 
-## Current State
+## Current Lab Shape
 
-- Repo created as a separate workspace for a temporary `RDPWin` test server.
-- Intended location: `/Users/chad.lampton/Documents/repo/rdpwin-test-server-lab`
-- This repo is specifically for test-host build notes and automation.
-- Production AVD infrastructure work remains in `/Users/chad.lampton/Documents/repo/rdp-avd-fshosted`.
-- Repo is an active local workspace for discovery automation, notes, and probe iteration.
-- Lab plan and probe now exist:
-  - `docs/TOMORROW_TEST_CHECKLIST.md`
-  - `docs/TEST_PLAN.md`
-  - `docs/CURRENT_STATE.md`
-  - `scripts/README.md`
-  - `scripts/Invoke-RDPWinLabProbe.ps1`
-- Azure automation scaffold now exists:
-  - `ansible.cfg`
-  - `inventories/`
-  - `playbooks/`
-  - `roles/lab_tofu/`
-  - `terraform/`
-  - `docs/RUNBOOK.md`
-  - `docs/ARCHITECTURE.md`
-  - `docs/CURRENT_STATE.md`
-  - `docs/VALIDATION.md`
-- DB test-server design material now exists:
-  - `docs/DBTEST01.md`
-  - `config/dbtest01-layout.json`
-  - `scripts/New-DBTEST01Layout.ps1`
-- DB test-server bootstrap automation now exists:
-  - `playbooks/configure_dbserver.yml`
-  - `roles/dbserver_bootstrap/`
-- SAW-style repo hygiene now exists:
-  - `.ansible-lint`
-  - `.yamllint`
-  - `.pre-commit-config.yaml`
-  - `.github/workflows/`
-  - `terraform/.tflint.hcl`
-- Repo-local lint helpers were also staged for local verification:
-  - `.venv/` for Python-based linters
-  - `.tools/bin/tflint` for Terraform linting
+- discovery session host:
+  - Azure VM: `rdp-discovery-01`
+  - Windows name: `RDPDISC01`
+- backend DB/file server:
+  - Azure VM: `db-test-01`
+  - Windows name: `DBTEST01`
+  - private IP: `10.210.10.5`
+  - data root: `F:\RDPDiscovery`
+- Azure control plane:
+  - subscription: `platform-sandbox`
+  - resource group: `rg-rdp-discovery-test`
+  - host pool: `hp-rdp-discovery-test`
+  - workspace: `ws-rdp-discovery-test`
+  - RemoteApp group: `rag-rdp-discovery-test`
+  - desktop group: `dag-rdp-discovery-test`
 
-## What Was Verified
+## What Is Installed And Working
 
-The following checks were run locally and passed:
-
-- `ansible-playbook --syntax-check playbooks/plan_lab.yml`
-- `ansible-playbook --syntax-check playbooks/deploy_lab.yml`
-- `.venv/bin/ansible-lint`
-- `.venv/bin/yamllint inventories playbooks roles .github .ansible-lint .yamllint`
-- `tofu -chdir=terraform fmt -check -recursive`
-- `tofu -chdir=terraform validate`
-- `./.tools/bin/tflint --recursive --chdir terraform`
-
-This means the repo is no longer just scaffolded. The local automation and lint
-path were exercised and cleaned up to a passing state.
-
-The following local validation checks were rerun after the `DBTEST01`
-implementation and bootstrap work and also passed:
-
-- `ansible-playbook --syntax-check playbooks/configure_dbserver.yml`
-- `tofu -chdir=terraform fmt -check -recursive`
-- `tofu -chdir=terraform init -backend=false`
-- `tofu -chdir=terraform validate`
-- `./.tools/bin/tflint --init --chdir terraform`
-- `./.tools/bin/tflint --recursive --chdir terraform`
-
-The following Azure deployment checks were also completed in `platform-sandbox`:
-
-- `ansible-playbook playbooks/plan_lab.yml`
-- `ansible-playbook playbooks/deploy_lab.yml`
-- resource group created: `rg-rdp-discovery-test`
-- VNet created: `vnet-rdp-discovery-test`
-- subnet created: `snet-rdp-discovery-sessionhosts`
-- host pool created: `hp-rdp-discovery-test`
-- app group created: `rag-rdp-discovery-test`
-- workspace created: `ws-rdp-discovery-test`
-- session host VM created: `rdp-discovery-01`
-- Windows computer name set explicitly to `RDPDISC01` to avoid the 15-character hostname limit
-- DB server VM created: `db-test-01`
-- Windows computer name set explicitly to `DBTEST01`
-- DB server private IP confirmed: `10.210.10.5`
-- DB server power state confirmed: `VM running`
-- DB server managed identity confirmed: `SystemAssigned`
-- DB server `AADLoginForWindows` extension confirmed in succeeded state
-- `playbooks/configure_dbserver.yml` completed successfully
-- DB server data disk initialized and formatted to `F:`
-- DB server layout root created: `F:\RDPDiscovery`
-- DB server bootstrap manifest executed successfully
-
-AVD session-host registration has now been confirmed from inside the VM:
-
-- `HKLM:\SOFTWARE\Microsoft\RDInfraAgent` shows `IsRegistered : 1`
-- `HostPoolId` is populated
-- `AgentState : 11`
-- `RdAgent` service is running
-- `RDAgentBootLoader` service is running
-
-The following identity and backend-access checks were also completed in the lab:
-
-- Entra VM login RBAC was applied for `chad.lampton@fullsteamhosted.com` on `rdp-discovery-01`
-- Entra VM login RBAC was applied for `chad.lampton@fullsteamhosted.com` on `db-test-01`
-- `RDPDISC01` successfully reached:
+- `DBTEST01` is deployed and bootstrapped.
+- `DBTEST01` exposes:
   - `\\DBTEST01\RDPAPPS$`
   - `\\DBTEST01\RDPCONFIG$`
   - `\\DBTEST01\RDPDATA$`
+- `RDPDISC01` can browse those three shares.
+- `RDPDISC01` and `DBTEST01` both have `AADLoginForWindows` installed and
+  succeeded.
+- Entra VM login RBAC is present on both VMs for
+  `chad.lampton@fullsteamhosted.com`.
+- `RDPWin` is installed on `RDPDISC01`.
+- `RDPWin` works from a full desktop session on `RDPDISC01`.
 
-The following operator constraint also matters:
+## Important AVD Findings
 
-- the lab Bastion in `rg-rdp-discovery-test` is `Developer` SKU
-- do not assume terminal/native-client tunnel workflows are available from macOS
-- treat Azure portal/Bastion admin access as the current supported path unless the Bastion SKU is intentionally changed later
+- AVD access was repaired on 2026-04-14.
+- Root cause:
+  - `RDPDISC01` was missing the `Remote Desktop Session Host` role
+    (`RDS-RD-Server`)
+  - AVD SxS stack installation was failing because of that
+- Repair completed:
+  - installed `RDS-RD-Server`
+  - restarted `RDPDISC01`
+- Current AVD health:
+  - session host status: `Available`
+  - session host update state: `Succeeded`
 
-The following installer media is now staged locally outside git:
+## Current Access Model
 
-- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/RDPWinMSI_5.6.001.6.msi`
-- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/Zen_Patch_Client-16.11.006.000.exe`
-- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/CRRuntime_64bit_13_0_39.msi`
-- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x64.exe`
-- `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x86.exe`
-- `/Users/chad.lampton/Documents/RDPInstalls/DBServers/Zen-CloudServer-16.10.004.000-win.exe`
-- `/Users/chad.lampton/Documents/RDPInstalls/DBServers/Zen_Patch_CloudServer-16.11.006.000.exe`
-- `/Users/chad.lampton/Documents/RDPInstalls/DBServers/RDPWinServer5.6.001.6.exe`
+- admin path:
+  - Bastion or equivalent direct admin path
+  - use `localadmin` for maintenance/troubleshooting
+- AVD / Windows App path:
+  - workspace friendly name: `RDP Discovery Test Workspace`
+  - current host pool preferred app group type: `RailApplications`
+  - `chad.lampton@fullsteamhosted.com` currently has:
+    - `Desktop Virtualization User` on `rag-rdp-discovery-test`
+    - no desktop entitlement on `dag-rdp-discovery-test`
 
-The Miro screenshots in `/Users/chad.lampton/Documents/RDP-Miro-Visual-Designs`
-were also reviewed and translated into repo notes. The main takeaways are:
+This means the current Entra user experience is intentionally app-only, not
+desktop-first.
 
-- the retained environment is multi-tier, not a one-box app
-- Windows/session-host access and app/database login are separate identity steps
-- AD still appears to influence initial DB/share/path selection
-- one term host plus one backend server is therefore the correct discovery shape
-- if the app still depends on legacy auth patterns instead of modern auth, that
-  is a design and PCI risk, not just a migration inconvenience
+## Most Important Current Limitation
 
-The probe script was also fixed locally on 2026-04-13:
+Pure RemoteApp is not yet usable for `RDPWin`.
 
-- `scripts/Invoke-RDPWinLabProbe.ps1`
-- the installed-software collector now tolerates uninstall-registry entries that do not expose `DisplayName`
-- a later rerun succeeded without `error_installed_software.json`
+Current observed behavior:
+
+- Windows App feed now shows the `RDPWin` RemoteApp correctly
+- selecting the app reaches Windows `Welcome`
+- the user profile loads successfully
+- the session logs off almost immediately afterward
+- `RDPWin` works from a full AVD desktop session, but not as a pure RemoteApp
+
+Interpretation:
+
+- Entra login is working
+- AVD brokering is working
+- profile load is working
+- the remaining failure is `RDPWin` behavior in pure RemoteApp mode
 
 ## Working Assumption
 
-Build one fresh Windows test server, install/configure `RDPWin`, and learn the minimum repeatable setup needed for later AVD session-host automation.
+The most likely viable model is now:
 
-This is explicitly a test/proving host. It does not need to model the final AVD design. It should be close enough to today's RDP/TERM behavior to answer `RDPWin` install, launch, routing, backend access, user-state, and printing questions.
+- AVD desktop session for the user path
+- local policy / scripted session shaping on `RDPDISC01`
+- auto-launch `RDPWin` at logon
+- make the session feel app-like
+- log off the session when `RDPWin` closes
 
-Near-term test direction has changed. The repo now supports building a separate
-Azure-hosted `DBTEST01` backend server for discovery so the session host can be
-tested against an Azure-side UNC/share layout instead of relying on retained
-Liquid Web database paths.
+This is closer to the current TERM-server behavior than Bastion, and is more
+realistic than forcing pure RemoteApp if `RDPWin` is not RemoteApp-clean.
 
-Azure-side discovery environment decisions are now fixed for the first lab host:
+## Repo State
 
-- subscription: `platform-sandbox`
-- resource group: `rg-rdp-discovery-test`
-- VNet: `vnet-rdp-discovery-test`
-- subnet: `snet-rdp-discovery-sessionhosts`
-- host pool: `hp-rdp-discovery-test`
-- app group: `rag-rdp-discovery-test`
-- workspace: `ws-rdp-discovery-test`
-- Azure VM name: `rdp-discovery-01`
-- Windows computer name: `RDPDISC01`
-- initial OS target: Windows Server 2022
+Repo-local automation now supports:
 
-Azure-side backend discovery environment decisions are now also fixed:
+- pooled AVD host pool
+- RemoteApp group for `RDPWin`
+- desktop app group for desktop-session testing
+- workspace association to both app groups
+- AVD user RBAC assignment support
+- VM login RBAC assignment support
 
-- Azure VM name: `db-test-01`
-- Windows computer name: `DBTEST01`
-- private IP: `10.210.10.5`
-- data volume: `F:`
-- root path: `F:\RDPDiscovery`
-- hidden share names:
-  - `RDPAPPS$`
-  - `RDPCONFIG$`
-  - `RDPDATA$`
+Files that were updated for the new AVD model:
 
-## Why This Repo Exists
+- `terraform/`
+- `inventories/group_vars/all.yml`
+- `roles/lab_tofu/tasks/main.yml`
+- `README.md`
+- `docs/RUNBOOK.md`
+- `docs/TEST_PLAN.md`
+- `docs/ARCHITECTURE.md`
+- `docs/VALIDATION.md`
 
-The production infrastructure repo is moving toward Azure Virtual Desktop, but key `RDPWin` packaging/configuration questions are still open. Before baking `RDPWin` assumptions into AVD session-host automation, we need a controlled fresh Windows host where `RDPWin` can be installed and tested without cloning a legacy terminal server.
+## What Was Verified Recently
 
-## Related Local Workspaces
+- `az` confirmed:
+  - `rdp-discovery-01-aadlogin` succeeded
+  - `db-test-01-aadlogin` succeeded
+  - VM login RBAC is present for `chad.lampton@fullsteamhosted.com`
+  - Bastion SKU is still `Developer`
+- AVD control plane confirmed:
+  - workspace `ws-rdp-discovery-test` exists
+  - desktop group `dag-rdp-discovery-test` exists
+  - RemoteApp group `rag-rdp-discovery-test` exists
+  - `RDPWin` is published from
+    `C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe`
+- Event logs confirmed:
+  - RDS logon/profile load succeeds for the test user
+  - pure RemoteApp session exits immediately after logon
 
-- production AVD infrastructure repo:
+## Next Recommended Work
+
+Do not spend time on more Terraform scaffolding first.
+
+The next meaningful work is:
+
+1. restore desktop entitlement temporarily for the test Entra user
+2. validate the AVD desktop path again through Windows App
+3. configure `RDPDISC01` to auto-launch `RDPWin` at user logon
+4. shape the desktop session to behave like an app session
+5. add logoff behavior when `RDPWin` closes
+6. only revisit pure RemoteApp later if the desktop-shaped model is insufficient
+
+## Probe Guidance
+
+The probe remains useful for install/config drift checks, but it is not the
+current blocker. The current blocker is session behavior after AVD sign-in.
+
+Probe path on the Windows host:
+
+`C:\Temp\Invoke-RDPWinLabProbe.ps1`
+
+## Related Repos
+
+- production AVD repo:
   - `/Users/chad.lampton/Documents/repo/rdp-avd-fshosted`
-- local-only restart note inside that repo:
-  - `/Users/chad.lampton/Documents/repo/rdp-avd-fshosted/HANDOFF.md`
-- original soft discovery folder:
+- SAW reference repo:
+  - `/Users/chad.lampton/Documents/repo/saw-avd-fshosted`
+- discovery notes:
   - `/Users/chad.lampton/Documents/rdp-soft-discovery`
-- strongest discovery summary:
-  - `/Users/chad.lampton/Documents/rdp-soft-discovery/RDP_INFRASTRUCTURE_DISCOVERY_CONSOLIDATED_REPORT.typ`
-- RDPWin-focused discovery notes:
-  - `/Users/chad.lampton/Documents/rdp-soft-discovery/docs/RDPWIN_NOTES.md`
-
-## Current Discovery Facts To Preserve
-
-- The retained architecture is multi-tier:
-  - terminal/session-host tier
-  - DB/file-share tier
-  - adjacent IRM/web/API systems
-  - backup, replication, monitoring, and VPN/external systems
-- The Miro current-state diagrams reinforce that this repo is intentionally a
-  narrow discovery slice, not a full production clone.
-- Customer users currently receive an app-like session, not a broad desktop.
-- Current customer launch is controlled by GPO behavior named `StartRDPWin`.
-- Current confirmed executable path:
-  - `C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe`
-- Closing `RDPWin.exe` currently logs off the customer session.
-- Support users currently receive a separate full-desktop workflow.
-- `TERM01` and `TERM03` align to `DB01`.
-- `TERM02`, `TERM04`, and likely `TERM06` align to `DB02`.
-- `DB01` and `DB02` are retained backend/payment-path systems.
-- `IRM01` depends on `DB01`; `IRM02` depends on `DB02`.
-- Existing terminal hosts show version/artifact drift; do not assume any one terminal host is a clean image baseline.
-- Working direction is MSI/package-based `RDPWin` install on a fresh host, not cloning an old TERM server.
-- Stephen White is the named owner for providing `RDPWin`, Actian Zen client, and any helper launcher/interface install media.
-- install media is now staged locally in `/Users/chad.lampton/Documents/RDPInstalls`
-- Actian client version and config may matter.
-- UNC/share launch paths may matter.
-- Each Logo has its own independent Actian Zen database.
-- Each Logo maintains its own `users.dat` file inside that Logo-specific Zen database.
-- The initial file directory share on `DB01` or `DB02` is selected programmatically from the user's AD group membership.
-- After that starting share or directory is established, the user can choose which DB to log into inside the application.
-- AD group membership is therefore a real dependency in the current design.
-- UNC/share access to retained `DB01` / `DB02` paths is therefore a real dependency in the current design.
-- Windows/server access and app/database access are separate identity steps in the current model.
-- Modern-auth readiness is not proven. If `RDPWin` still depends on legacy auth
-  patterns or classic AD-driven routing, that is a design and PCI risk.
-- The current routing explanation is now clearer:
-  - SMB/UNC share access is granted through AD security groups
-  - the user logs into the server and is allowed access to either the `DB01` or `DB02` path based on AD group membership
-  - folders are created manually
-  - folder permissions are assigned manually
-  - those folders are tied back to AD security groups
-- Database-routing logic is now partially closed: initial path selection is AD-group-driven, but the exact component implementing that lookup still needs to be identified.
-- Questionnaire response from Stephen confirms current environment assumptions are still classic-AD oriented:
-  - classic AD and GPO are believed to be in use
-  - UNC shares, launch paths, and database access are AD-integrated
-  - current DB01-hosted UNC launch paths must remain available on day one of the AVD rollout
-  - UNC/file-share connectivity between terminal servers and `DB01` / `DB02` is required for `RDPWin` to work
-- Questionnaire response also confirms intended user-state behavior:
-  - pilot is expected to be non-persistent
-  - production is also expected to be non-persistent unless another requirement is later discovered
-  - no known roaming profile, printer, cache, or app-state requirement was identified in the questionnaire
-- Questionnaire response indicates production intent is to recreate the environment in Azure rather than keep Azure-to-Liquid-Web connectivity long term.
-- Broad per-user `RDPWin` profile state has not been proven, but no broad user-state hit was found in the light probe.
-
-## Still To Decide
-
-- whether the first host should stay Entra-joined for testing or whether classic AD-domain-join is required earlier because of AD-group-driven share/path selection
-- whether the retained auth model can satisfy modern-auth and PCI expectations,
-  or whether that becomes a hard blocker for the target design
-- which network path should be used to reach `DB01` / `DB02`
-- whether the first test targets `DB01`, `DB02`, or both
-- whether the questionnaire answer "none" for Azure-to-Liquid-Web routing reflects final migration intent only, or whether the approved Azure test-user/test-database path still depends on retained AD, UNC, or other hybrid connectivity during discovery
-- authoritative `RDPWin` installer/package path
-- required Actian/client/ODBC setup
-- exact post-install configuration steps for `RDPWin`
-- exact component that performs the AD-group-to-share/path lookup
-- whether app-side MFA exists inside `RDPWin`, and if so how it is implemented
-- exact meaning of the questionnaire answer "Installshield" for the authoritative installer:
-  - package file name
-  - version
-  - owner
-  - silent install method
-- reconcile questionnaire answer "None" for post-install steps with other discovery evidence showing host-specific paths, UNC dependencies, and DB selection behavior
-- reconcile questionnaire answer "manual control by remote desktop connection configuration" with the newer finding that initial share selection is AD-group-driven and users can later choose a DB in the app
-- exact non-production test identity model:
-  - Azure test user
-  - app-side user, if separate
-  - test Logo / test database
-  - expected AD group mapping
-
-## Current Pause Point
-
-The Azure discovery environment has already been planned and deployed. Bastion admin access to the Windows host has also been confirmed. The next work starts on the Windows side.
-
-We are stopped after:
-
-1. building the Azure lab automation scaffold
-2. adding lint and validation guardrails
-3. fixing local lint findings
-4. updating stale docs to match the current repo state
-5. creating `inventories/group_vars/all.yml`
-6. running `playbooks/plan_lab.yml` successfully
-7. running `playbooks/deploy_lab.yml` successfully
-8. creating the Azure discovery environment and session host VM
-9. confirming AVD session-host registration from inside the VM
-10. confirming Bastion access to the Windows host
-11. capturing new routing and identity findings from discovery notes
-12. wiring `DBTEST01` into Terraform and Ansible
-13. deploying `db-test-01` / `DBTEST01` into the same Azure lab footprint
-14. confirming `DBTEST01` is running with private IP `10.210.10.5`
-15. bootstrapping `DBTEST01` with `F:\RDPDiscovery` and the hidden SMB shares
-16. applying Entra VM login RBAC on both VMs for `chad.lampton@fullsteamhosted.com`
-17. confirming SMB/UNC access from `RDPDISC01` to the three `DBTEST01` hidden shares
-18. fixing the probe installed-software collector and confirming a later rerun completed without collector errors
-19. reviewing the Miro current-state screenshots and capturing the architecture in `docs/CURRENT_STATE.md`
-20. creating `docs/TOMORROW_TEST_CHECKLIST.md` so tomorrow can run from a procedure instead of improvisation
-
-We have not yet:
-
-- installed Actian or `RDPWin` on the Windows host
-- run a clean `Baseline` probe on the deployed host using `DBTEST01` plus explicit `-SharePaths`
-- proven whether Entra-joined-only is viable once AD-group-driven share selection is exercised
-- loaded an approved non-production Actian Zen data set onto `DBTEST01`
-- reconciled the new questionnaire answers against earlier discovery notes where they appear to conflict
-- confirmed the exact end-to-end lab test identity:
-  - AVD sign-in user
-  - app-side user, if separate
-  - test Logo / test database
-  - expected AD group mapping
-- exact test details for the non-production path:
-  - Azure test user
-  - test database
-  - any required test-side server/share/path mapping
-- proven whether first launch can work without reproducing some classic-AD or legacy-auth behavior
-
-## Deployment Readiness
-
-The base Azure lab is deployed and ready for the next operational sequence:
-
-1. confirm `RDPDISC01` and `DBTEST01` are reachable through the approved admin path
-2. verify UNC access from `RDPDISC01` to `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and `\\DBTEST01\RDPDATA$`
-3. run a clean `Baseline` probe on `RDPDISC01` against `DBTEST01` with explicit `-SharePaths`
-4. install terminal-side prerequisites on `RDPDISC01` in this order:
-   - `VC_redist.x64.exe`
-   - `VC_redist.x86.exe`
-   - `CRRuntime_64bit_13_0_39.msi`
-   - `Zen_Patch_Client-16.11.006.000.exe`
-5. run the `AfterActian` probe
-6. install `RDPWinMSI_5.6.001.6.msi`
-7. run the `AfterRDPWinInstall` probe
-8. inspect `C:\ProgramData\ResortDataProcessing\RDPWin`
-9. apply only the minimum config needed for the approved non-production path
-10. run the `AfterConfig` and `LaunchSmoke` probes
-11. capture whether the first failure, if any, is install, config, auth, DB, or share related
-
-For `DBTEST01`, the current post-deploy sequence is:
-
-1. VM deployed through `playbooks/deploy_lab.yml`
-2. `playbooks/configure_dbserver.yml` completed
-3. attached data disk initialized to `F:`
-4. `F:\RDPDiscovery` folder/share layout created from the repo manifest
-
-## Questionnaire Intake Summary
-
-Stephen returned the dependency questionnaire on 2026-04-09. High-signal points from that response:
-
-- Liquid Web side connectivity is owned by Stephen with Liquid Web support.
-- Liquid Web firewall changes are approved by Ron and Stephen; Azure-side approver is still unknown.
-- DNS changes are owned by Ron and Stephen.
-- Final disputed design call goes to Ron.
-- Long-term goal is no Azure-to-Liquid-Web connectivity, but a temporary site-to-site VPN may still speed up data transfer.
-- Questionnaire marked Azure-to-Liquid-Web routing as "none" and production-only VPN need, which conflicts with the current discovery-host test pattern and needs explicit reconciliation.
-- Current server names such as `DB01`, `DB02`, `DB04`, `TERM01`, `TERM02`, `TERM03`, `TERM04`, and `TERM06` were called out as naming references; some external-facing names may need to change.
-- Classic AD and GPO are believed to be in use today.
-- UNC shares, launch paths, and database access are AD-integrated.
-- `RDPWin` is said to require host-specific naming, paths, UNC locations, or local configuration.
-- Current DB01-hosted UNC launch paths are required on day one of AVD rollout.
-- UNC path connectivity between terminal servers and data servers is required.
-- Pilot and production were both described as non-persistent, with no known roaming profile or printer-state need.
-
-Items from the questionnaire that are useful but still too weak to treat as closed:
-
-- `Installshield` as the installer answer is not enough; actual package, version, owner, and install command are still needed.
-- Stephen White has been identified as the installer owner, but exact package names and versions are still needed.
-- `None` for post-install steps conflicts with other evidence and needs to be verified on the fresh host.
-- `We manually control this by remote desktop connection configuration` conflicts with the newer AD-group-driven share-selection finding and needs reconciliation.
-- `Unknown` remains on Azure network ownership, Azure firewall approval, routing ownership, and Entra-joined compatibility.
-- New meeting clarification: do not test the Azure discovery host against retained production dependencies. Use an Azure test user and a test database path when those are available.
-
-## First Test Objective
-
-The first successful milestone is not “production-ready AVD.”
-
-The first successful milestone is:
-
-1. a fresh Windows host exists
-2. required network path to selected backend exists
-3. required identity/authentication mode is known
-4. authoritative `RDPWin` installer is available outside git
-5. install procedure is documented
-6. `RDPWin.exe` launches
-7. tester can prove whether login/routing hits the intended backend
-8. required missing components are captured as a short punch list
-
-## Probe Workflow
-
-Copy `scripts/Invoke-RDPWinLabProbe.ps1` to the Windows test host or copy this repo there.
-
-Suggested phases:
-
-1. `Baseline`
-2. `AfterActian`
-3. `AfterRDPWinInstall`
-4. `AfterConfig`
-5. `LaunchSmoke`
-
-Baseline example:
-
-```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
-```
-
-Launch-monitor example:
-
-```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File .\scripts\Invoke-RDPWinLabProbe.ps1 -Phase LaunchSmoke -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$' -MonitorRDPWinSeconds 180
-```
-
-Default Windows output root:
-
-`C:\Temp\RDPWinLab\<COMPUTERNAME>\<Phase>_<timestamp>`
-
-## Working Local Commands
-
-Current local lint/validation path is working and uses repo-local tooling:
-
-- `.venv/bin/ansible-lint`
-- `.venv/bin/yamllint inventories playbooks roles .github .ansible-lint .yamllint`
-- `tofu -chdir=terraform fmt -check -recursive`
-- `tofu -chdir=terraform validate`
-- `./.tools/bin/tflint --init --chdir terraform`
-- `./.tools/bin/tflint --recursive --chdir terraform`
-
-## Next Step
-
-The next Codex session should not spend time on more Terraform scaffolding.
-
-The immediate next steps are:
-
-1. use `docs/TOMORROW_TEST_CHECKLIST.md` as the operator run sheet
-2. verify UNC/share access from `RDPDISC01` to `DBTEST01`
-3. run the Windows-side `Baseline` probe on `RDPDISC01` against `DBTEST01` with explicit `-SharePaths`
-4. begin Actian and `RDPWin` discovery against the Azure-hosted backend
-5. treat legacy-auth or AD-driven routing requirements as a possible design and PCI blocker, not just a test inconvenience
