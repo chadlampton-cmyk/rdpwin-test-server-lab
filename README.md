@@ -132,7 +132,9 @@ Current operator access model is split:
 
 ## Current Deployed State
 
-As of 2026-04-15, the Azure lab has been deployed in `platform-sandbox` and includes:
+Historical deployment state:
+
+As of 2026-04-15, the Azure lab was deployed in `platform-sandbox` and included:
 
 - `rdp-discovery-01` / `RDPDISC01`
 - `db-test-01` / `DBTEST01`
@@ -160,7 +162,7 @@ Current validated operator findings:
 - `RDPDISC01` can reach `\\DBTEST01\RDPAPPS$`
 - `RDPDISC01` can reach `\\DBTEST01\RDPCONFIG$`
 - `RDPDISC01` can reach `\\DBTEST01\RDPDATA$`
-- Entra VM login RBAC has been applied for `chad.lampton@fullsteamhosted.com` on both VMs
+- Entra VM login RBAC was applied for the original test operator on both VMs
 - AVD workspace now exposes both:
   - `RDP Discovery Test RemoteApp`
   - `RDP Discovery Test Desktop`
@@ -195,9 +197,56 @@ Current known installer staging outside git:
 - `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x64.exe`
 - `/Users/chad.lampton/Documents/RDPInstalls/TermServers/VC_redist.x86.exe`
 
+That historical environment is no longer the active deployment target.
+
+Active deployment state:
+
+As of 2026-04-16, the Azure lab was successfully deployed in the FS Capabilities
+test subscription and includes:
+
+- resource group: `externalavd-test-rg`
+- session host VM: `rdp-discovery-01` / `RDPDISC01`
+- session host private IP: `10.10.0.5`
+- backend VM: `db-test-01` / `DBTEST01`
+- backend private IP: `10.10.0.4`
+- VNet: `extavd-testing-centralus`
+- subnet: `avd-hostpools-centralus`
+- host pool: `hp-rdp-discovery-test`
+- workspace: `ws-rdp-discovery-test`
+- RemoteApp group: `rag-rdp-discovery-test`
+- desktop group: `dag-rdp-discovery-test`
+
+Deployment result:
+
+- `23` resources added
+- `0` changed
+- `0` destroyed
+- `AADLoginForWindows` succeeded on both VMs
+- AVD registration extension succeeded on `RDPDISC01`
+
 The next work is validating and refining the desktop-session model, not more
 base infrastructure build-out and not more pure RemoteApp troubleshooting. The
-AVD desktop session that auto-launches `RDPWin` is now the active test model.
+AVD desktop session that auto-launches `RDPWin` is now the active test model in
+the FS Capabilities tenant.
+
+## Current Target Direction
+
+This repo is now being re-pointed toward the target tenant and subscription:
+
+- tenant: `fscaptest.onmicrosoft.com`
+- subscription: `FS Capabilities - Test External AVD`
+- subscription ID: `56bf2a01-7815-4df3-a396-b9b4d6a55362`
+- primary test operator UPN:
+  `chad.lampton@fullsteamtest.onmicrosoft.com`
+
+This means the repo now has two distinct states:
+
+- historical state: the already-built lab in `platform-sandbox`
+- active deployment target and current live lab: the FS Capabilities test
+  subscription
+
+Do not assume the historical deployment facts above describe the current target
+tenant. Use the inventory files and plan/apply path for the active target.
 
 ## PCI Direction
 

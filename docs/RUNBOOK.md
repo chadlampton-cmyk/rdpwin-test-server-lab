@@ -76,7 +76,7 @@ Expected behavior:
 
 ## Current Lab Status
 
-Current deployed state in `platform-sandbox`:
+Historical deployed state in `platform-sandbox`:
 
 - session host VM: `rdp-discovery-01` / `RDPDISC01`
 - DB backend VM: `db-test-01` / `DBTEST01`
@@ -85,7 +85,21 @@ Current deployed state in `platform-sandbox`:
 - `RDPDISC01` can browse `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and
   `\\DBTEST01\RDPDATA$`
 - both VMs have `AADLoginForWindows` in succeeded state
-- VM login RBAC for `chad.lampton@fullsteamhosted.com` is present on both VMs
+- VM login RBAC for the original source-tenant test operator was present on
+  both VMs
+
+Current active target and deployed state:
+
+- tenant: `fscaptest.onmicrosoft.com`
+- subscription: `FS Capabilities - Test External AVD`
+- subscription ID: `56bf2a01-7815-4df3-a396-b9b4d6a55362`
+- current test operator UPN:
+  `chad.lampton@fullsteamtest.onmicrosoft.com`
+- resource group: `externalavd-test-rg`
+- VNet: `extavd-testing-centralus`
+- subnet: `avd-hostpools-centralus`
+- session host private IP: `10.10.0.5`
+- backend private IP: `10.10.0.4`
 - workspace: `RDP Discovery Test Workspace`
 - app groups:
   - `RDP Discovery Test RemoteApp`
@@ -93,6 +107,10 @@ Current deployed state in `platform-sandbox`:
 - session host AVD status:
   - `Available`
   - `updateState: Succeeded`
+- deployment result:
+  - `23` resources added
+  - `0` changed
+  - `0` destroyed
 
 ## Current Access Model
 
@@ -125,16 +143,18 @@ not the expired Zen license.
 
 ## Current Recommended Operator Flow
 
-1. confirm `RDPDISC01` AVD session-host status is still `Available`
-2. confirm UNC access from `RDPDISC01` to `DBTEST01`
-3. use Windows App for user-path testing
-4. use Bastion only for admin repair/troubleshooting
-5. if testing install/config drift, run the probe from the host:
+1. confirm `RDPDISC01` AVD session-host status is still `Available` in FS
+   Capabilities
+2. confirm VM sign-in works in the new tenant
+3. confirm UNC access from `RDPDISC01` to `DBTEST01` after app/config staging
+4. use Windows App for user-path testing
+5. use Bastion only for admin repair/troubleshooting
+6. if testing install/config drift, run the probe from the host:
    `C:\Temp\Invoke-RDPWinLabProbe.ps1`
-6. for the next implementation step, prefer a desktop session that auto-launches
+7. for the next implementation step, prefer a desktop session that auto-launches
    `RDPWin` over pure RemoteApp
-7. do not reintroduce shell-kill or aggressive Start/taskbar lockdown changes
+8. do not reintroduce shell-kill or aggressive Start/taskbar lockdown changes
    unless the vendor provides a specific supported requirement
-8. for PCI-aligned implementation, do not rely on the current `HKLM Run`
+9. for PCI-aligned implementation, do not rely on the current `HKLM Run`
    launcher as the final control; replace it with a deterministic logon-time
    trigger before treating the design as ready

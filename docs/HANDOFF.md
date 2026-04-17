@@ -1,6 +1,6 @@
 # Handoff
 
-Last updated: 2026-04-15.
+Last updated: 2026-04-17.
 
 ## Cold-Start Instruction
 
@@ -22,12 +22,39 @@ Stay in:
   - private IP: `10.210.10.5`
   - data root: `F:\RDPDiscovery`
 - Azure control plane:
-  - subscription: `platform-sandbox`
+  - historical subscription: `platform-sandbox`
   - resource group: `rg-rdp-discovery-test`
   - host pool: `hp-rdp-discovery-test`
   - workspace: `ws-rdp-discovery-test`
   - RemoteApp group: `rag-rdp-discovery-test`
   - desktop group: `dag-rdp-discovery-test`
+- active retargeting direction:
+  - tenant: `fscaptest.onmicrosoft.com`
+  - subscription: `FS Capabilities - Test External AVD`
+  - subscription ID: `56bf2a01-7815-4df3-a396-b9b4d6a55362`
+  - test operator UPN: `chad.lampton@fullsteamtest.onmicrosoft.com`
+
+## Current Active Deployment
+
+The repo is no longer only in retargeting mode.
+
+As of 2026-04-16, the lab was deployed into FS Capabilities:
+
+- tenant: `fscaptest.onmicrosoft.com`
+- subscription: `FS Capabilities - Test External AVD`
+- subscription ID: `56bf2a01-7815-4df3-a396-b9b4d6a55362`
+- resource group: `externalavd-test-rg`
+- VNet: `extavd-testing-centralus`
+- subnet: `avd-hostpools-centralus`
+- session host private IP: `10.10.0.5`
+- backend private IP: `10.10.0.4`
+- deployment result:
+  - `23` added
+  - `0` changed
+  - `0` destroyed
+
+The historical `platform-sandbox` deployment remains useful as prior lab
+context, but it is no longer the active environment.
 
 ## What Is Installed And Working
 
@@ -39,10 +66,17 @@ Stay in:
 - `RDPDISC01` can browse those three shares.
 - `RDPDISC01` and `DBTEST01` both have `AADLoginForWindows` installed and
   succeeded.
-- Entra VM login RBAC is present on both VMs for
-  `chad.lampton@fullsteamhosted.com`.
+- Entra VM login RBAC was previously present on both VMs for the original test
+  operator in the source tenant.
 - `RDPWin` is installed on `RDPDISC01`.
 - `RDPWin` works from a full desktop session on `RDPDISC01`.
+- The FS Capabilities rebuild completed successfully:
+  - `db-test-01` exists
+  - `rdp-discovery-01` exists
+  - both VMs have `AADLoginForWindows` in succeeded state
+  - `RDPDISC01` AVD registration extension succeeded
+  - AVD workspace, host pool, and app groups were created in
+    `externalavd-test-rg`
 
 ## Important AVD Findings
 
@@ -66,7 +100,7 @@ Stay in:
 - AVD / Windows App path:
   - workspace friendly name: `RDP Discovery Test Workspace`
   - current host pool preferred app group type: `Desktop`
-  - `chad.lampton@fullsteamhosted.com` currently has:
+  - the original source-tenant test user previously had:
     - `Desktop Virtualization User` on `dag-rdp-discovery-test`
     - no entitlement on `rag-rdp-discovery-test`
 
@@ -179,18 +213,33 @@ Files that were updated for the new AVD model:
 - `docs/ARCHITECTURE.md`
 - `docs/VALIDATION.md`
 
+Files additionally updated to support FS Capabilities landing-zone reuse:
+
+- `terraform/main.tf`
+- `terraform/variables.tf`
+- `terraform/locals.tf`
+- `terraform/outputs.tf`
+- `terraform/modules/network/`
+- `terraform/modules/workspace/`
+- `inventories/group_vars/all.yml`
+- `inventories/group_vars/all.example.yml`
+
 ## What Was Verified Recently
 
+- `tofu validate` passed against the FS Capabilities target
+- `tofu plan` passed against the FS Capabilities target
+- `tofu apply` completed successfully in FS Capabilities
 - `az` confirmed:
   - `rdp-discovery-01-aadlogin` succeeded
   - `db-test-01-aadlogin` succeeded
-  - VM login RBAC is present for `chad.lampton@fullsteamhosted.com`
-  - Bastion SKU is still `Developer`
-- AVD control plane confirmed:
+  - `rdp-discovery-01-avd-register-*` succeeded
+  - VM login RBAC was applied for the FS Capabilities Entra operator object
+- Bastion SKU is still `Developer`
+- AVD control plane confirmed in FS Capabilities:
   - workspace `ws-rdp-discovery-test` exists
   - desktop group `dag-rdp-discovery-test` exists
   - RemoteApp group `rag-rdp-discovery-test` exists
-  - current test-user entitlement is desktop-only
+  - host pool `hp-rdp-discovery-test` exists
 - Event logs confirmed:
   - RDS logon/profile load succeeds for the test user
   - pure RemoteApp session exits immediately after logon
@@ -209,30 +258,32 @@ Files that were updated for the new AVD model:
     right-click Start”
   - `HKLM\...\Run` launcher behavior is inconsistent across users:
     `AzureAD\ChadLampton` logged launcher activity, while
-    `felix.ferdinand@fullsteamhosted.com` did not
+    another non-admin Entra test user did not
 
 ## Next Recommended Work
 
-Do not spend time on more AVD presentation changes first.
+Do not spend time on more infrastructure build-out first.
 
 The next meaningful work is:
 
-1. keep the desktop model as the primary user path
-2. treat pure RemoteApp as a tested dead end unless new vendor guidance says
+1. validate the freshly deployed FS Capabilities lab
+2. confirm AVD session-host health and user-path access in the new tenant
+3. keep the desktop model as the primary user path
+4. treat pure RemoteApp as a tested dead end unless new vendor guidance says
    otherwise
-3. replace the current `HKLM Run` launcher with a more reliable logon-time
+5. replace the current `HKLM Run` launcher with a more reliable logon-time
    trigger, preferably a Scheduled Task
-4. keep `explorer.exe` alive and avoid shell replacement or aggressive Start
+6. keep `explorer.exe` alive and avoid shell replacement or aggressive Start
    menu lockdown
-5. define Entra security groups for per-database routing and treat them as the
+7. define Entra security groups for per-database routing and treat them as the
    routing source of truth
-6. build the local routing-broker layer on `RDPDISC01` so users are assigned to
+8. build the local routing-broker layer on `RDPDISC01` so users are assigned to
    a single DB target at launch time
-7. validate the current desktop auto-launch and full-logoff flow end to end
+9. validate the current desktop auto-launch and full-logoff flow end to end
    with a dedicated non-admin Entra user
-8. continue backend/app validation on `DBTEST01` only if a new runtime error
+10. continue backend/app validation on `DBTEST01` only if a new runtime error
    appears
-9. document any remaining UX compromises instead of chasing unsupported shell
+11. document any remaining UX compromises instead of chasing unsupported shell
    behavior
 
 ## Probe Guidance
