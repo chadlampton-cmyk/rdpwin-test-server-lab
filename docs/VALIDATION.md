@@ -1,5 +1,7 @@
 # Validation
 
+Last updated: 2026-04-21.
+
 ## Static Checks
 
 Run these before pushing changes:
@@ -37,6 +39,7 @@ After apply, validate:
 - `DBTEST01` data disk is online and formatted
 - `DBTEST01` folder/share layout exists
 - `DBTEST01` is running
+- no `Microsoft.AAD/domainServices` resource exists yet for the active lab
 
 Examples:
 
@@ -72,6 +75,16 @@ For `DBTEST01`, validate through Bastion or Azure Run Command as well:
 - `Test-Path 'F:\RDPDiscovery'`
 - `Get-SmbShare -Name RDPAPPS$,RDPCONFIG$,RDPDATA$`
 
+Current caution:
+
+- share existence on `DBTEST01` does not prove that end-user UNC authorization
+  is working
+- the current standalone `DBTEST01` cannot reliably resolve Entra-only
+  principals for SMB / NTFS ACL enforcement
+- the `RDPNT1000/2000/3000` groups currently on `DBTEST01` should be treated as
+  placeholders until `Microsoft Entra Domain Services` is deployed and the
+  server is domain-joined
+
 ## RDPWin Validation
 
 Current expected state:
@@ -99,12 +112,27 @@ Current session-shaping findings to validate:
 - `explorer.exe` is intentionally left running
 - current `HKLM Run` launcher behavior is not consistent across all Entra users
 
+Current external-tenant identity findings to validate:
+
+- `avdtest01@fscaptest.onmicrosoft.com` was created as a tenant-local internal
+  user
+- no Entra role results in `AADSTS500208`
+- `Guest Inviter` clears `AADSTS500208` but does not allow MFA registration
+- `Message Center Reader` allows MFA registration and AVD sign-in
+- `Message Center Reader` is the current minimum tested working role
+- `Message Center Reader` should be treated as a workaround under evaluation,
+  not final proof of a PCI-clean customer-user design
+
 PCI-aligned validation should also confirm:
 
 - dedicated non-admin Entra users receive the app-first session behavior
 - admin users do not
 - the chosen logon trigger runs consistently across users
 - the launch/logoff control leaves a usable audit trail
+- the external-tenant user path does not require a broader Entra role than is
+  strictly necessary
+- the backend UNC model is eventually revalidated after domain-backed SMB
+  authorization is implemented
 
 Use:
 

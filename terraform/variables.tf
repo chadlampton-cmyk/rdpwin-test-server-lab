@@ -18,8 +18,18 @@ variable "resource_group_name" {
   type = string
 }
 
+variable "use_existing_resource_group" {
+  type    = bool
+  default = false
+}
+
 variable "vnet_name" {
   type = string
+}
+
+variable "use_existing_virtual_network" {
+  type    = bool
+  default = false
 }
 
 variable "subnet_name" {

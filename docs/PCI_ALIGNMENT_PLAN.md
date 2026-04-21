@@ -1,6 +1,6 @@
 # PCI Alignment Plan
 
-Last updated: 2026-04-15.
+Last updated: 2026-04-21.
 
 ## Purpose
 
@@ -31,6 +31,15 @@ The currently supported user path is:
 
 Pure RemoteApp has been tested and is not the active target path for this app.
 
+Current external-tenant identity findings:
+
+- tenant-local named users in `fscaptest` can sign into AVD
+- AVD RBAC alone is not sufficient for the tested external-tenant user path
+- the current minimum tested working Entra role for MFA registration and AVD
+  access is `Message Center Reader`
+- `Guest Inviter` clears `AADSTS500208` but does not allow MFA registration
+- `Global Reader` also works, but is broader than needed
+
 ## PCI-Relevant Design Principles
 
 The design direction for this lab should satisfy these operational control
@@ -49,6 +58,7 @@ The design direction for this lab should satisfy these operational control
 ### User Path
 
 - users authenticate with Entra through Windows App / AVD
+- users are expected to satisfy MFA before entering the AVD session
 - users are assigned only the AVD desktop app group required for the
   `RDPWin` session
 - users are not granted local admin rights
@@ -89,6 +99,20 @@ The design direction for this lab should satisfy these operational control
    - A stronger PCI-ready path should also rely on a deterministic trigger and
      leave clearer operational evidence when it runs.
 
+5. The current external-tenant identity model is not yet least-privilege clean.
+   - The current minimum tested working role for MFA registration is
+     `Message Center Reader`.
+   - That is narrower than `Global Reader`, but still broader than a
+     customer-style end user should ideally hold.
+   - The external-tenant user model should not yet be treated as the final
+     PCI-aligned identity design.
+
+6. Backend UNC / SMB enforcement is not yet PCI-aligned.
+   - `DBTEST01` is currently a standalone Windows file server with
+     `AADLoginForWindows`, not a domain-backed authorization target.
+   - The legacy `group -> UNC path` model cannot currently be enforced with
+     Entra-only SMB / NTFS ACLs on `DBTEST01`.
+
 ## PCI-Aligned Implementation Plan
 
 ### Phase 1: Lock The Access Model
@@ -97,6 +121,12 @@ The design direction for this lab should satisfy these operational control
 2. Keep admin users separate.
 3. Keep Bastion or direct admin access as the maintenance path only.
 4. Do not use admin users to validate the customer session experience.
+
+Current note:
+
+- if `Message Center Reader` remains required for external-tenant MFA
+  registration, treat it as a temporary workaround rather than the final target
+  role model
 
 ### Phase 2: Replace The Launch Trigger
 
@@ -145,6 +175,21 @@ Capture and retain:
 - evidence that non-admin users auto-launch `RDPWin`
 - evidence that `RDPWin` close causes full logoff
 - any remaining shell exposure accepted as a documented tradeoff
+- evidence of the exact Entra role required to permit MFA registration for the
+  external-tenant user path
+- evidence of the final domain-backed UNC authorization model once implemented
+
+### Phase 6: Backend Authorization Repair
+
+1. Deploy `Microsoft Entra Domain Services` for the active lab tenant.
+2. Join `DBTEST01` to the managed domain.
+3. Recreate or sync the `RDPNT1000`, `RDPNT2000`, and `RDPNT3000` routing
+   groups as domain-resolvable principals.
+4. Apply share and NTFS ACLs on `DBTEST01` to those domain principals.
+5. Retest:
+   - `CSS0 -> RDPNT1000`
+   - `HSC1 -> RDPNT2000`
+   - `TCS2 -> RDPNT3000`
 
 ## What Not To Treat As PCI Requirements
 
@@ -153,6 +198,8 @@ The following are not good primary control objectives for this lab:
 - forcing pure RemoteApp for `RDPWin`
 - disabling only left-click Start while preserving right-click Start
 - killing `explorer.exe` if doing so breaks the business application
+- treating `Message Center Reader` as an acceptable permanent customer-user role
+- treating standalone `DBTEST01` local groups as a valid final UNC control plane
 
 Those may look cleaner cosmetically, but they are not more defensible than a
  stable, least-privileged, MFA-backed desktop session with deterministic
@@ -163,9 +210,11 @@ Those may look cleaner cosmetically, but they are not more defensible than a
 The next implementation step should be:
 
 1. replace the `HKLM Run` launcher with a Scheduled Task at user logon
-2. retest with `felix.ferdinand@fullsteamhosted.com`
+2. continue external-tenant role minimization below `Message Center Reader` if
+   possible
 3. keep `AzureAD\ChadLampton` as admin-only validation
-4. document the result in `docs/HANDOFF.md` and `docs/VALIDATION.md`
+4. begin planning `Microsoft Entra Domain Services` for `DBTEST01`
+5. document the result in `docs/HANDOFF.md` and `docs/VALIDATION.md`
 
 ## Reference Sources
 

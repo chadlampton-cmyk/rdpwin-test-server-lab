@@ -13,8 +13,8 @@
 lab_tofu_tf_dir: "{{ playbook_dir }}/../terraform"
 lab_tofu_bin: "tofu"
 lab_tofu_plan_path: "/tmp/rdpwin-lab.tfplan"
-lab_tofu_expected_subscription_id: ""
-lab_tofu_expected_subscription_name: ""
+lab_tofu_expected_subscription_id: "56bf2a01-7815-4df3-a396-b9b4d6a55362"
+lab_tofu_expected_subscription_name: "FS Capabilities - Test External AVD"
 
 # -------------------------------------------------
 # Core deployment inputs
@@ -27,9 +27,11 @@ group: "rdpdiscovery"
 # -------------------------------------------------
 # Azure resource naming
 # -------------------------------------------------
-resource_group_name: "rg-rdp-discovery-test"
-vnet_name: "vnet-rdp-discovery-test"
-subnet_name: "snet-rdp-discovery-sessionhosts"
+resource_group_name: "externalavd-test-rg"
+use_existing_resource_group: true
+vnet_name: "extavd-testing-centralus"
+use_existing_virtual_network: true
+subnet_name: "avd-hostpools-centralus"
 workspace_name: "ws-rdp-discovery-test"
 host_pool_name: "hp-rdp-discovery-test"
 app_group_name: "rag-rdp-discovery-test"
@@ -39,9 +41,9 @@ desktop_app_group_name: "dag-rdp-discovery-test"
 # Addressing
 # -------------------------------------------------
 vnet_address_space:
-  - "10.210.0.0/16"
+  - "10.10.0.0/16"
 subnet_address_prefixes:
-  - "10.210.10.0/24"
+  - "10.10.0.0/24"
 custom_dns_servers: []
 
 # -------------------------------------------------
@@ -107,12 +109,16 @@ enable_aad_login_extension: true
 # - user UPN, such as user@example.com
 # - exact group display name
 # - service principal app ID or object ID
-vm_user_login_principals: []
-vm_admin_login_principals: []
-avd_user_principals: []
+vm_user_login_principals:
+  - "chad.lampton@fullsteamtest.onmicrosoft.com"
+vm_admin_login_principals:
+  - "chad.lampton@fullsteamtest.onmicrosoft.com"
+avd_user_principals:
+  - "chad.lampton@fullsteamtest.onmicrosoft.com"
 # Prefer the split lists below for new deployments so desktop and RemoteApp
 # access can be granted independently.
-avd_desktop_user_principals: []
+avd_desktop_user_principals:
+  - "chad.lampton@fullsteamtest.onmicrosoft.com"
 avd_remoteapp_user_principals: []
 # Raw object IDs are also supported when you want to bypass name lookup.
 vm_user_login_principal_ids: []

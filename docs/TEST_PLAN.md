@@ -1,5 +1,7 @@
 # RDPWin Test Plan
 
+Last updated: 2026-04-21.
+
 ## Goal
 
 Prove the smallest repeatable build needed for `RDPWin` on a fresh Windows host
@@ -36,6 +38,23 @@ Current PCI-alignment direction says that model should use:
 - separate admin identities for maintenance
 - a deterministic logon trigger, not the current unreliable `HKLM Run` method
 
+Current external-tenant identity findings:
+
+- `avdtest01@fscaptest.onmicrosoft.com` was created as an internal user
+- no Entra role caused `AADSTS500208`
+- `Guest Inviter` cleared `AADSTS500208` but did not allow MFA registration
+- `Message Center Reader` allowed MFA registration and AVD sign-in
+- `Message Center Reader` is the current minimum tested working role, but it is
+  probably still too broad for the final customer-style target design
+
+Current backend authorization findings:
+
+- `DBTEST01` does not currently have `Microsoft Entra Domain Services`
+- the local `RDPNT1000/2000/3000` groups on `DBTEST01` should be treated as
+  placeholders
+- the current standalone `DBTEST01` cannot reliably enforce the legacy
+  `group -> UNC path` model with Entra-only SMB / NTFS ACLs
+
 ## Test Sequence
 
 ### 1. Backend Baseline
@@ -47,7 +66,14 @@ hold:
 - `RDPDISC01` can reach:
   - `\\DBTEST01\RDPAPPS$`
   - `\\DBTEST01\RDPCONFIG$`
-  - `\\DBTEST01\RDPDATA$`
+- `\\DBTEST01\RDPDATA$`
+
+Important note:
+
+- raw share reachability from `RDPDISC01` is no longer enough to prove that the
+  final user authorization model works
+- user-specific UNC authorization is blocked until a domain-backed SMB identity
+  source exists for `DBTEST01`
 
 Run the probe as needed from the Windows host:
 
@@ -62,9 +88,17 @@ Use Windows App to enter the AVD desktop session on `RDPDISC01`.
 Confirm:
 
 - Windows sign-in succeeds
+- MFA registration succeeds for the tested external-tenant user
 - `RDPWin` launches automatically or manually from the desktop session
 - app-side sign-in behavior is captured
 - any backend error text is recorded precisely
+
+Current preferred identity test user:
+
+- `avdtest01@fscaptest.onmicrosoft.com`
+- current tested working Entra roles:
+  - `Guest Inviter`
+  - `Message Center Reader`
 
 ### 3. App-Session Shaping
 
@@ -112,6 +146,8 @@ Current known backend findings:
 - the Zen temporary license was confirmed expired, then reactivated
 - `Btrieve Error 161` is no longer the active blocker
 - pure RemoteApp still fails even after the license fix
+- UNC visibility tied to `RDPNT1000/2000/3000` is not yet a valid end-user
+  authorization test on the current standalone `DBTEST01`
 
 This means the main design decision is settled: keep the desktop model and stop
 treating RemoteApp as the target path.
@@ -119,6 +155,12 @@ treating RemoteApp as the target path.
 The next control-design decision is also settled: replace the current launch
 trigger with a more reliable logon-time mechanism before calling this session
 model ready for broader rollout.
+
+The next backend authorization decision is also settled:
+
+- stop trying to force Entra-only SMB / NTFS ACL resolution on the standalone
+  `DBTEST01`
+- move toward `Microsoft Entra Domain Services` for UNC/share enforcement
 
 ## Evidence To Keep
 
@@ -146,3 +188,7 @@ local/
   surface
 - session end behavior after closing `RDPWin` is known and documented
 - the resulting configuration is scriptable for future scale-out
+- the target identity model is documented as:
+  - External ID + MFA for AVD session sign-in now
+  - separate `RDPWin` login in the short term
+  - eventual app-side Entra authentication as a future state

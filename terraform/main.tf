@@ -1,4 +1,10 @@
+data "azurerm_resource_group" "lab" {
+  count = var.use_existing_resource_group ? 1 : 0
+  name  = var.resource_group_name
+}
+
 resource "azurerm_resource_group" "lab" {
+  count    = var.use_existing_resource_group ? 0 : 1
   name     = var.resource_group_name
   location = var.location
   tags     = local.tags
@@ -6,7 +12,7 @@ resource "azurerm_resource_group" "lab" {
 
 module "network" {
   source                  = "./modules/network"
-  resource_group_name     = azurerm_resource_group.lab.name
+  resource_group_name     = local.resource_group_name
   location                = var.location
   vnet_name               = var.vnet_name
   vnet_address_space      = var.vnet_address_space
@@ -14,12 +20,13 @@ module "network" {
   subnet_address_prefixes = var.subnet_address_prefixes
   custom_dns_servers      = var.custom_dns_servers
   enable_public_outbound  = var.enable_public_outbound
+  use_existing_virtual_network = var.use_existing_virtual_network
   tags                    = local.tags
 }
 
 module "hostpool" {
   source              = "./modules/hostpool"
-  resource_group_name = azurerm_resource_group.lab.name
+  resource_group_name = local.resource_group_name
   location            = var.location
   host_pool_name      = var.host_pool_name
   friendly_name       = var.host_pool_friendly_name
@@ -28,7 +35,7 @@ module "hostpool" {
 
 module "appgroup" {
   source                           = "./modules/appgroup"
-  resource_group_name              = azurerm_resource_group.lab.name
+  resource_group_name              = local.resource_group_name
   location                         = var.location
   host_pool_id                     = module.hostpool.host_pool_id
   app_group_name                   = var.app_group_name
@@ -44,20 +51,17 @@ module "appgroup" {
 
 module "workspace" {
   source              = "./modules/workspace"
-  resource_group_name = azurerm_resource_group.lab.name
+  resource_group_name = local.resource_group_name
   location            = var.location
   workspace_name      = var.workspace_name
   friendly_name       = var.workspace_friendly_name
-  app_group_ids       = compact([
-    module.appgroup.remoteapp_group_id,
-    module.appgroup.desktop_group_id
-  ])
+  app_group_ids_by_key = local.avd_app_group_scopes
   tags                = local.tags
 }
 
 module "sessionhost" {
   source                     = "./modules/sessionhost"
-  resource_group_name        = azurerm_resource_group.lab.name
+  resource_group_name        = local.resource_group_name
   location                   = var.location
   subnet_id                  = module.network.subnet_id
   vm_name                    = var.sessionhost_vm_name
@@ -76,7 +80,7 @@ module "sessionhost" {
 
 module "dbserver" {
   source                         = "./modules/dbserver"
-  resource_group_name            = azurerm_resource_group.lab.name
+  resource_group_name            = local.resource_group_name
   location                       = var.location
   subnet_id                      = module.network.subnet_id
   vm_name                        = var.dbserver_vm_name

@@ -1,6 +1,6 @@
 # Access And Routing Plan
 
-Last updated: 2026-04-15.
+Last updated: 2026-04-20.
 
 ## Purpose
 
@@ -44,6 +44,18 @@ The recommended target state is:
 - when `RDPWin` closes, the Windows session logs off fully
 - admin access remains separate from the user path
 
+For UNC / SMB authorization, the lab should no longer assume that a standalone
+`DBTEST01` with Entra-only identities can enforce Windows share and NTFS ACLs
+the same way the legacy AD environment did.
+
+The chosen remediation path is:
+
+- add `Microsoft Entra Domain Services` to the lab tenant
+- join `DBTEST01` to the managed domain
+- use domain-resolvable groups for UNC/share authorization
+- keep Entra groups as the high-level routing source of truth
+- translate those groups into domain-backed ACL enforcement on `DBTEST01`
+
 ## Why This Model
 
 This model is recommended because:
@@ -56,6 +68,10 @@ This model is recommended because:
 
 The right control point is therefore the logon/launch broker on the session
  host, not raw desktop access and not manual DB selection by users.
+
+For the backend file server, the right enforcement point is a domain-backed SMB
+authorization model, not local groups on a standalone Windows server trying to
+resolve `AzureAD\\...` principals.
 
 ## Target Access Model
 
@@ -106,6 +122,36 @@ Examples:
 
 This prevents silent misrouting and is the safest model for PCI-oriented access
  control.
+
+## Backend Authorization Model
+
+The backend authorization model is split into two layers:
+
+- Entra groups determine the user's intended route
+- domain-backed groups and ACLs on `DBTEST01` enforce UNC visibility
+
+Current conclusion:
+
+- `DBTEST01` does not currently have `Microsoft Entra Domain Services`
+- direct SMB / NTFS ACL assignment to Entra-only cloud identities on
+  `DBTEST01` failed with principal-resolution errors
+- the local `RDPNT1000/2000/3000` groups on `DBTEST01` should be treated as
+  incomplete placeholders until a domain-backed identity source exists
+
+Implementation plan for UNC / SMB repair:
+
+1. Deploy `Microsoft Entra Domain Services` for the active lab tenant.
+2. Join `DBTEST01` to the managed domain.
+3. Create or sync the `RDPNT1000`, `RDPNT2000`, and `RDPNT3000` routing groups
+   as domain-resolvable principals.
+4. Apply share and NTFS ACLs on `DBTEST01` to those domain principals.
+5. Retest UNC visibility with:
+   - `CSS0 -> RDPNT1000`
+   - `HSC1 -> RDPNT2000`
+   - `TCS2 -> RDPNT3000`
+
+Until that is complete, do not use UNC visibility failures as evidence that the
+`RDPWin` app itself is broken.
 
 ## Azure Assignment Model
 

@@ -9,7 +9,21 @@ terraform {
   }
 }
 
+data "azurerm_virtual_network" "existing" {
+  count               = var.use_existing_virtual_network ? 1 : 0
+  name                = var.vnet_name
+  resource_group_name = var.resource_group_name
+}
+
+data "azurerm_subnet" "existing" {
+  count                = var.use_existing_virtual_network ? 1 : 0
+  name                 = var.subnet_name
+  virtual_network_name = var.vnet_name
+  resource_group_name  = var.resource_group_name
+}
+
 resource "azurerm_virtual_network" "this" {
+  count               = var.use_existing_virtual_network ? 0 : 1
   name                = var.vnet_name
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -19,6 +33,7 @@ resource "azurerm_virtual_network" "this" {
 }
 
 resource "azurerm_network_security_group" "this" {
+  count               = var.use_existing_virtual_network ? 0 : 1
   name                = "${var.subnet_name}-nsg"
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -26,19 +41,21 @@ resource "azurerm_network_security_group" "this" {
 }
 
 resource "azurerm_subnet" "this" {
+  count                = var.use_existing_virtual_network ? 0 : 1
   name                 = var.subnet_name
   resource_group_name  = var.resource_group_name
-  virtual_network_name = azurerm_virtual_network.this.name
+  virtual_network_name = azurerm_virtual_network.this[0].name
   address_prefixes     = var.subnet_address_prefixes
 }
 
 resource "azurerm_subnet_network_security_group_association" "this" {
-  subnet_id                 = azurerm_subnet.this.id
-  network_security_group_id = azurerm_network_security_group.this.id
+  count                     = var.use_existing_virtual_network ? 0 : 1
+  subnet_id                 = azurerm_subnet.this[0].id
+  network_security_group_id = azurerm_network_security_group.this[0].id
 }
 
 resource "azurerm_public_ip" "nat" {
-  count               = var.enable_public_outbound ? 1 : 0
+  count               = var.enable_public_outbound && !var.use_existing_virtual_network ? 1 : 0
   name                = "${var.vnet_name}-nat-pip"
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -48,7 +65,7 @@ resource "azurerm_public_ip" "nat" {
 }
 
 resource "azurerm_nat_gateway" "this" {
-  count               = var.enable_public_outbound ? 1 : 0
+  count               = var.enable_public_outbound && !var.use_existing_virtual_network ? 1 : 0
   name                = "${var.vnet_name}-nat"
   location            = var.location
   resource_group_name = var.resource_group_name
@@ -57,13 +74,13 @@ resource "azurerm_nat_gateway" "this" {
 }
 
 resource "azurerm_nat_gateway_public_ip_association" "this" {
-  count                = var.enable_public_outbound ? 1 : 0
+  count                = var.enable_public_outbound && !var.use_existing_virtual_network ? 1 : 0
   nat_gateway_id       = azurerm_nat_gateway.this[0].id
   public_ip_address_id = azurerm_public_ip.nat[0].id
 }
 
 resource "azurerm_subnet_nat_gateway_association" "this" {
-  count          = var.enable_public_outbound ? 1 : 0
-  subnet_id      = azurerm_subnet.this.id
+  count          = var.enable_public_outbound && !var.use_existing_virtual_network ? 1 : 0
+  subnet_id      = azurerm_subnet.this[0].id
   nat_gateway_id = azurerm_nat_gateway.this[0].id
 }

@@ -1,5 +1,5 @@
 output "resource_group_name" {
-  value = azurerm_resource_group.lab.name
+  value = local.resource_group_name
 }
 
 output "host_pool_name" {

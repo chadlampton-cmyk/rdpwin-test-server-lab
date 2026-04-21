@@ -1,4 +1,6 @@
 locals {
+  resource_group_name = var.use_existing_resource_group ? data.azurerm_resource_group.lab[0].name : azurerm_resource_group.lab[0].name
+
   tags = merge(
     {
       Project     = var.project_name

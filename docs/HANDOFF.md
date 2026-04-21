@@ -304,3 +304,203 @@ Probe path on the Windows host:
   - `/Users/chad.lampton/Documents/repo/saw-avd-fshosted`
 - discovery notes:
   - `/Users/chad.lampton/Documents/rdp-soft-discovery`
+
+## FYI: FS Capabilities User And Group Findings
+
+As of 2026-04-17, the following test identities were created in
+`fscaptest.onmicrosoft.com`:
+
+- `CSS0@fscaptest.onmicrosoft.com`
+- `HSC1@fscaptest.onmicrosoft.com`
+- `TCS2@fscaptest.onmicrosoft.com`
+
+Matching security groups were also created:
+
+- `RDPNT1000`
+- `RDPNT2000`
+- `RDPNT3000`
+
+Mapping applied:
+
+- `CSS0` -> `RDPNT1000`
+- `HSC1` -> `RDPNT2000`
+- `TCS2` -> `RDPNT3000`
+
+AVD-side access that was successfully configured:
+
+- those groups were assigned `Desktop Virtualization User` on
+  `dag-rdp-discovery-test`
+- those groups were assigned `Virtual Machine User Login` on
+  `rdp-discovery-01`
+
+Updated AVD identity finding:
+
+- direct sign-in with tenant-local users is not a hard blocker by itself
+- `Guest Inviter` was sufficient to remove the `AADSTS500208` login-domain
+  error for the test user
+- `Guest Inviter` was not sufficient to allow MFA registration for the test
+  user; the sign-in flow then failed with:
+  - `You are required to register an authentication method to continue but none
+    have been enabled for this account`
+- `Message Center Reader` was sufficient to allow the test user to proceed with
+  MFA registration
+- `Global Reader` was also sufficient to allow MFA registration, but is broader
+  than needed for the current test
+- current tested conclusion:
+  - AVD RBAC alone is not enough for the tenant-local user path in this
+    external tenant
+  - `Guest Inviter` improves account classification enough to clear
+    `AADSTS500208`
+  - `Message Center Reader` improves account classification enough to clear
+    `AADSTS500208` and allow MFA registration
+  - `Global Reader` is not the minimum working role discovered so far
+- current minimum tested working Entra role for the external-tenant AVD user
+  path is:
+  - `Message Center Reader`
+- caution:
+  - `Message Center Reader` is a narrower workaround than `Global Reader`, but
+    still likely too broad for a true PCI-style customer end-user model
+
+Verified internal-user example created on `2026-04-20`:
+
+- display name: `AVD Test 01`
+- UPN: `avdtest01@fscaptest.onmicrosoft.com`
+- creation method:
+  - `Entra ID -> Users -> New user -> Create new user`
+  - this was created as a tenant-local internal user, not
+    `Create new external user`
+- temporary password was set at creation time
+- `forceChangePasswordNextSignIn = true`
+- tested Microsoft Entra directory role progression:
+  - no Entra role:
+    - hit `AADSTS500208`
+  - `Guest Inviter`:
+    - cleared `AADSTS500208`
+    - did not allow MFA registration
+  - `Reports Reader`:
+    - assigned as an intermediate test role
+    - superseded by the narrower `Message Center Reader` test
+    - do not treat it as the preferred result
+  - `Message Center Reader`:
+    - cleared `AADSTS500208`
+    - allowed MFA registration
+  - `Global Reader`:
+    - cleared `AADSTS500208`
+    - allowed MFA registration
+- current Entra directory roles on the account as of `2026-04-20`:
+  - `Guest Inviter`
+  - `Message Center Reader`
+- assigned Azure access only:
+  - `Desktop Virtualization User` on
+    `dag-rdp-discovery-test`
+  - `Virtual Machine User Login` on `rdp-discovery-01`
+- chat-generated replacement temporary password requested on `2026-04-20`:
+  - `Q7m!P2x#L9v@R4s$T8n^W3k`
+  - note: this value was documented for operator recall only; it was not
+    confirmed as applied to the Entra account in Azure
+
+This account should be treated as the reference AVD test user for proving that
+tenant-local internal users in `fscaptest` can access AVD without
+`Global Reader`.
+
+Important architecture conclusion from `2026-04-20`:
+
+- short-term target state:
+  - named user exists in the Entra External ID tenant
+  - user is required to use MFA
+  - user signs into AVD with that external-tenant identity
+  - user then signs into `RDPWin` separately with app credentials
+- long-term target state:
+  - `RDPWin` should eventually consume the Entra identity from the session and
+    eliminate the separate app login
+- constraint:
+  - AVD SSO only gets the user into Windows; it does not by itself remove the
+    `RDPWin` application login
+  - removing the `RDPWin` login will require app-side support for modern Entra
+    authentication such as `OIDC`, `SAML`, or equivalent custom integration
+
+Open design concern for follow-up:
+
+- even though `Message Center Reader` works, requiring any Entra directory role
+  for a customer-style interactive AVD user is probably not the clean final
+  design
+- if a lower-privilege role cannot be found, reconsider whether the external
+  tenant should be the long-term interactive AVD identity plane for PCI-style
+  end users
+
+Important DB authorization finding:
+
+- `DBTEST01` already has the expected folders and shares:
+  - `RDPNT1000 -> F:\RDPNT1000`
+  - `RDPNT2000 -> F:\RDPNT2000`
+  - `RDPNT3000 -> F:\RDPNT3000`
+- current share / NTFS permissions are still broad and legacy-shaped
+- attempts to assign the new Entra cloud groups or users directly to SMB / NTFS
+  ACLs on `DBTEST01` failed with Windows principal-resolution errors
+- exact failure pattern:
+  - `No mapping between account names and security IDs was done`
+  - `Principal AzureAD\\... was not found`
+- this means the legacy model of `security group -> UNC path restriction` is not
+  currently achievable on `DBTEST01` with these Entra-only identities in the
+  current server identity state
+- Azure inspection on `2026-04-20` confirmed there is no existing
+  `Microsoft.AAD/domainServices` deployment behind this lab
+- `DBTEST01` should therefore be treated as a standalone Windows file server
+  with `AADLoginForWindows`, not a domain-backed SMB authorization target
+
+Implication:
+
+- AVD / Entra login and Windows file-share authorization are separate problems
+- the current FS Capabilities test can support AVD-side access assignment
+- it cannot enforce the legacy DB share restriction model with Entra-only
+  identities alone on the current `DBTEST01`
+
+Chosen UNC / SMB remediation path:
+
+- stop treating Entra-only local groups on `DBTEST01` as a viable final answer
+- deploy `Microsoft Entra Domain Services` for the lab tenant
+- join `DBTEST01` to the managed domain
+- create or sync the routing groups in the managed domain
+- apply share and NTFS ACLs to domain-resolvable principals instead of
+  `AzureAD\\...` identities
+- retest the expected legacy mapping:
+  - `CSS0 -> RDPNT1000`
+  - `HSC1 -> RDPNT2000`
+  - `TCS2 -> RDPNT3000`
+
+Until that is complete:
+
+- treat the `RDPNT1000/2000/3000` groups currently on `DBTEST01` as placeholders
+- do not assume UNC visibility failures for `CSS0` are app bugs
+- do not spend more time trying to force Entra-only SMB ACL resolution on the
+  standalone `DBTEST01` server
+
+## FYI: Additional RDP Q&A Design Findings
+
+Useful design findings from the vendor Q&A that were not previously captured
+explicitly:
+
+- the current hosted RDP environment is explicitly AD-centric according to the
+  vendor; AD is not a side dependency, it is the backbone of the current hosted
+  model
+- backend visibility and support troubleshooting currently assume admin-level
+  access to the environment
+- DNS and FQDN usage must be inventoried before final naming is finalized;
+  preserving hostnames alone may not be sufficient if the current system relies
+  on domain-qualified server names
+- preserving server names is preferred by the vendor to reduce customer impact
+  and avoid recreating customer-facing shortcuts where possible
+- firewall and routing exports are required migration inputs; these were
+  identified as key unknowns that vendor-provided config and DNS exports should
+  help answer
+- Liquid Web remains part of the current support and infrastructure dependency
+  chain, especially for network / router details
+- the environment is expected to run continuously with no normal shutdown model;
+  24x7 operation is the baseline assumption
+- critical operational knowledge is still concentrated in a small number of
+  vendor contacts, so support/runbook information should be documented out of
+  individual knowledge where possible
+
+The same Q&A did not provide explicit port numbers in the transcript excerpt;
+only that firewall, routing, and config-file details exist and should be
+collected separately.

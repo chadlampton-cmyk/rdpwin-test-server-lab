@@ -266,6 +266,18 @@ all Entra/AVD users. The next implementation step should therefore replace the
 current launcher trigger with a more reliable logon-time mechanism, such as a
 Scheduled Task.
 
+There is also now a confirmed backend identity gap on `DBTEST01`:
+
+- no `Microsoft Entra Domain Services` deployment currently exists for the
+  active `fscaptest` lab
+- `DBTEST01` cannot reliably enforce the legacy `group -> UNC path` model with
+  Entra-only SMB / NTFS ACLs
+- the chosen repair path for UNC / SMB authorization is:
+  - deploy `Microsoft Entra Domain Services`
+  - join `DBTEST01` to the managed domain
+  - reapply the `RDPNT1000/2000/3000` authorization model with
+    domain-resolvable principals
+
 See:
 
 - `docs/PCI_ALIGNMENT_PLAN.md`
