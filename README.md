@@ -201,8 +201,9 @@ That historical environment is no longer the active deployment target.
 
 Active deployment state:
 
-As of 2026-04-16, the Azure lab was successfully deployed in the FS Capabilities
-test subscription and includes:
+As of 2026-04-23, the Azure lab is running in the FS Capabilities test
+subscription under the `fullsteamhostedtest.onmicrosoft.com` workforce tenant
+and includes:
 
 - resource group: `externalavd-test-rg`
 - session host VM: `rdp-discovery-01` / `RDPDISC01`
@@ -215,35 +216,75 @@ test subscription and includes:
 - workspace: `ws-rdp-discovery-test`
 - RemoteApp group: `rag-rdp-discovery-test`
 - desktop group: `dag-rdp-discovery-test`
+- tenant: `fullsteamhostedtest.onmicrosoft.com`
+- tenant ID: `2fc43150-f428-43e0-8eac-0a547eaa5dc6`
+- subscription ID: `56bf2a01-7815-4df3-a396-b9b4d6a55362`
 
 Deployment result:
 
 - `23` resources added
 - `0` changed
 - `0` destroyed
-- `AADLoginForWindows` succeeded on both VMs
+- `AADLoginForWindows` succeeded on both VMs after the initial FS
+  Capabilities rebuild
 - AVD registration extension succeeded on `RDPDISC01`
+- the subscription move preserved the VM and AVD objects
+- user-facing AVD RBAC had to be recreated in the new tenant
+
+Current staged users and groups in `fullsteamhostedtest`:
+
+- users:
+  - `CSS0@fullsteamhostedtest.onmicrosoft.com`
+  - `HSC1@fullsteamhostedtest.onmicrosoft.com`
+  - `TCS2@fullsteamhostedtest.onmicrosoft.com`
+- Entra cloud groups:
+  - `RDPNT1000`
+  - `RDPNT2000`
+  - `RDPNT3000`
+- mapping:
+  - `CSS0 -> RDPNT1000`
+  - `HSC1 -> RDPNT2000`
+  - `TCS2 -> RDPNT3000`
 
 The next work is validating and refining the desktop-session model, not more
 base infrastructure build-out and not more pure RemoteApp troubleshooting. The
 AVD desktop session that auto-launches `RDPWin` is now the active test model in
 the FS Capabilities tenant.
 
+Current `RDPDISC01` recovery state:
+
+- the stale old-tenant local join state was removed from `RDPDISC01`
+- the first `AADLoginForWindows` delete became stuck in Azure control-plane
+  state after the local cleanup
+- `rdp-discovery-01` was then rebuilt from the preserved OS disk and existing
+  NIC
+- `AADLoginForWindows` was reinstalled successfully on the rebuilt VM
+- `dsregcmd /status` now shows the recovered Entra join:
+  - `AzureAdJoined : YES`
+  - `EnterpriseJoined : NO`
+  - `DomainJoined : NO`
+- `DeviceAuthStatus : SUCCESS`
+- VM sign-in RBAC was restored by assigning `Virtual Machine User Login` back
+  to `RDPNT1000` on `rdp-discovery-01`
+- Windows App sign-in was revalidated successfully with
+  `CSS0@fullsteamhostedtest.onmicrosoft.com`
+
 ## Current Target Direction
 
-This repo is now being re-pointed toward the target tenant and subscription:
+This repo is now tracking the active workforce tenant and subscription:
 
-- tenant: `fscaptest.onmicrosoft.com`
+- tenant: `fullsteamhostedtest.onmicrosoft.com`
+- tenant ID: `2fc43150-f428-43e0-8eac-0a547eaa5dc6`
 - subscription: `FS Capabilities - Test External AVD`
 - subscription ID: `56bf2a01-7815-4df3-a396-b9b4d6a55362`
 - primary test operator UPN:
-  `chad.lampton@fullsteamtest.onmicrosoft.com`
+  `chad.lampton@fullsteamhosted.com`
 
 This means the repo now has two distinct states:
 
 - historical state: the already-built lab in `platform-sandbox`
-- active deployment target and current live lab: the FS Capabilities test
-  subscription
+- active live lab: the FS Capabilities test subscription after the tenant move
+  into `fullsteamhostedtest`
 
 Do not assume the historical deployment facts above describe the current target
 tenant. Use the inventory files and plan/apply path for the active target.
@@ -269,7 +310,7 @@ Scheduled Task.
 There is also now a confirmed backend identity gap on `DBTEST01`:
 
 - no `Microsoft Entra Domain Services` deployment currently exists for the
-  active `fscaptest` lab
+  active `fullsteamhostedtest` lab
 - `DBTEST01` cannot reliably enforce the legacy `group -> UNC path` model with
   Entra-only SMB / NTFS ACLs
 - the chosen repair path for UNC / SMB authorization is:

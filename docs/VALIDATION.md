@@ -1,6 +1,6 @@
 # Validation
 
-Last updated: 2026-04-21.
+Last updated: 2026-04-24.
 
 ## Static Checks
 
@@ -39,7 +39,8 @@ After apply, validate:
 - `DBTEST01` data disk is online and formatted
 - `DBTEST01` folder/share layout exists
 - `DBTEST01` is running
-- no `Microsoft.AAD/domainServices` resource exists yet for the active lab
+- `Microsoft.AAD/domainServices` exists for the active lab once AAD DS has been
+  created
 
 Examples:
 
@@ -48,10 +49,15 @@ az group show --name "<resource-group-name>" -o yaml
 az desktopvirtualization hostpool show -g "<resource-group-name>" -n "<host-pool-name>" -o yaml
 az desktopvirtualization applicationgroup list -g "<resource-group-name>" -o yaml
 az desktopvirtualization workspace show -g "<resource-group-name>" -n "<workspace-name>" -o yaml
-az vm extension show --resource-group "<resource-group-name>" --vm-name "<sessionhost-vm-name>" --name "<sessionhost-vm-name>-aadlogin" -o yaml
+az vm extension show --resource-group "<resource-group-name>" --vm-name "<sessionhost-vm-name>" --name "AADLoginForWindows" -o yaml
 az role assignment list --all --assignee "<user-or-group>" -o table
 az rest --method get --url "https://management.azure.com/<session-host-collection-url>?api-version=2024-04-03" -o yaml
 ```
+
+Note:
+
+- the Terraform resource is named like `<vm-name>-aadlogin`, but the live ARM
+  VM extension name to query is `AADLoginForWindows`
 
 ## AVD Session Host Validation
 
@@ -112,16 +118,27 @@ Current session-shaping findings to validate:
 - `explorer.exe` is intentionally left running
 - current `HKLM Run` launcher behavior is not consistent across all Entra users
 
-Current external-tenant identity findings to validate:
+Current workforce-tenant identity findings to validate:
 
-- `avdtest01@fscaptest.onmicrosoft.com` was created as a tenant-local internal
-  user
-- no Entra role results in `AADSTS500208`
-- `Guest Inviter` clears `AADSTS500208` but does not allow MFA registration
-- `Message Center Reader` allows MFA registration and AVD sign-in
-- `Message Center Reader` is the current minimum tested working role
-- `Message Center Reader` should be treated as a workaround under evaluation,
-  not final proof of a PCI-clean customer-user design
+- the active tenant is now `fullsteamhostedtest.onmicrosoft.com`
+- the subscription move preserved the VMs and AVD control-plane objects but did
+  not preserve user-facing RBAC at the app-group or VM scopes
+- staged users now exist as tenant-local named identities:
+  - `CSS0@fullsteamhostedtest.onmicrosoft.com`
+  - `HSC1@fullsteamhostedtest.onmicrosoft.com`
+  - `TCS2@fullsteamhostedtest.onmicrosoft.com`
+- staged Entra cloud groups now exist:
+  - `RDPNT1000`
+  - `RDPNT2000`
+  - `RDPNT3000`
+- staged group mapping is:
+  - `CSS0 -> RDPNT1000`
+  - `HSC1 -> RDPNT2000`
+  - `TCS2 -> RDPNT3000`
+- `Desktop Virtualization User` was reapplied on
+  `dag-rdp-discovery-test` for all three groups
+- `Virtual Machine User Login` was reapplied on `rdp-discovery-01` for all
+  three groups
 
 PCI-aligned validation should also confirm:
 
@@ -129,10 +146,49 @@ PCI-aligned validation should also confirm:
 - admin users do not
 - the chosen logon trigger runs consistently across users
 - the launch/logoff control leaves a usable audit trail
-- the external-tenant user path does not require a broader Entra role than is
-  strictly necessary
+- the workforce-tenant user path works without shared credentials
 - the backend UNC model is eventually revalidated after domain-backed SMB
   authorization is implemented
+
+Current AAD DS findings to validate:
+
+- `Microsoft.AAD` provider is `Registered`
+- dedicated subnet `aadds-centralus` exists with prefix `10.10.10.0/24`
+- `Microsoft Entra Domain Services` now exists with managed domain name
+  `fshostedtest.onmicrosoft.com`
+- latest Azure verification on `2026-04-24` showed
+  `provisioningState: Succeeded`
+
+Current `RDPDISC01` join-repair findings to validate:
+
+- `IMDS` reports tenant `2fc43150-f428-43e0-8eac-0a547eaa5dc6`
+- stale old-tenant values were removed from `RDInfraAgent` and
+  `CloudDomainJoin`
+- the stuck `AADLoginForWindows` delete was cleared by rebuilding the VM
+  resource while preserving the OS disk and NIC
+- current local join state is recovered:
+  - `AzureAdJoined : YES`
+  - `EnterpriseJoined : NO`
+  - `DomainJoined : NO`
+  - `DeviceAuthStatus : SUCCESS`
+- current VM extension state:
+  - `AADLoginForWindows: Succeeded`
+- current access validation result:
+  - `CSS0` is in `RDPNT1000`
+  - `RDPNT1000` has `Desktop Virtualization User` on
+    `dag-rdp-discovery-test`
+  - `RDPNT1000` has `Virtual Machine User Login` on `rdp-discovery-01`
+  - Windows App sign-in succeeded with
+    `CSS0@fullsteamhostedtest.onmicrosoft.com`
+
+Current UNC / SMB blocker findings to validate:
+
+- `DBTEST01` still cannot translate these principals into Windows ACL
+  principals:
+  - `AzureAD\\RDPNT1000/2000/3000`
+  - `fullsteamhostedtest\\RDPNT1000/2000/3000`
+- therefore Entra cloud groups should still be treated as AVD-access groups
+  only until `DBTEST01` is domain-joined
 
 Use:
 

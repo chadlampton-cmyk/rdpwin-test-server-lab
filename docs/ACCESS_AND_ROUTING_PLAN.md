@@ -135,12 +135,14 @@ Current conclusion:
 - `DBTEST01` does not currently have `Microsoft Entra Domain Services`
 - direct SMB / NTFS ACL assignment to Entra-only cloud identities on
   `DBTEST01` failed with principal-resolution errors
+- the same failure was reproduced again after the subscription moved into
+  `fullsteamhostedtest.onmicrosoft.com`
 - the local `RDPNT1000/2000/3000` groups on `DBTEST01` should be treated as
   incomplete placeholders until a domain-backed identity source exists
 
 Implementation plan for UNC / SMB repair:
 
-1. Deploy `Microsoft Entra Domain Services` for the active lab tenant.
+1. Deploy `Microsoft Entra Domain Services` for the active workforce tenant.
 2. Join `DBTEST01` to the managed domain.
 3. Create or sync the `RDPNT1000`, `RDPNT2000`, and `RDPNT3000` routing groups
    as domain-resolvable principals.
@@ -152,6 +154,18 @@ Implementation plan for UNC / SMB repair:
 
 Until that is complete, do not use UNC visibility failures as evidence that the
 `RDPWin` app itself is broken.
+
+Current active tenant for this plan:
+
+- `fullsteamhostedtest.onmicrosoft.com`
+- tenant ID: `2fc43150-f428-43e0-8eac-0a547eaa5dc6`
+
+Current AAD DS prep already completed there:
+
+- `Microsoft.AAD` provider registered
+- dedicated subnet created:
+  - `aadds-centralus`
+  - `10.10.10.0/24`
 
 ## Azure Assignment Model
 
@@ -297,6 +311,29 @@ This likely includes some combination of:
 
 The broker must not expose or populate settings for databases the user is not
  authorized to access.
+
+Current confirmed `RDPWinPath.txt` values in the lab are direct UNC targets,
+not abstract placeholders:
+
+- `\\DBTest01\RDPNT1000\RDP\RDP01 [CCS]`
+- `\\DBTest01\RDPNT2000\RDP\RDP02 [HCS]`
+- `\\DBTest01\RDPNT3000\RDP\RDP03 [TCS]`
+
+Current confirmed `GroupToServer5.txt` note:
+
+- `Must match the server drop down order in RDPWinPath5.txt`
+- `CCS 0`
+- `HSC 1`
+- `TCS 2`
+
+This implies the current client configuration is order-sensitive. If
+`GroupToServer5.txt` or `RDPWinPath5.txt` is rebuilt or rewritten, the server
+ordering must stay aligned with the UNC path list to avoid misrouting users to
+the wrong logo/backend target.
+
+That means the active routing and authorization model still depends on concrete
+Windows file-server paths under the `RDPNT1000/2000/3000` folder trees on
+`DBTEST01`.
 
 ## Fail-Closed Rules
 

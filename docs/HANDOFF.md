@@ -1,6 +1,6 @@
 # Handoff
 
-Last updated: 2026-04-17.
+Last updated: 2026-04-24.
 
 ## Cold-Start Instruction
 
@@ -28,24 +28,28 @@ Stay in:
   - workspace: `ws-rdp-discovery-test`
   - RemoteApp group: `rag-rdp-discovery-test`
   - desktop group: `dag-rdp-discovery-test`
-- active retargeting direction:
-  - tenant: `fscaptest.onmicrosoft.com`
+- active live tenant:
+  - tenant: `fullsteamhostedtest.onmicrosoft.com`
+  - tenant ID: `2fc43150-f428-43e0-8eac-0a547eaa5dc6`
   - subscription: `FS Capabilities - Test External AVD`
   - subscription ID: `56bf2a01-7815-4df3-a396-b9b4d6a55362`
-  - test operator UPN: `chad.lampton@fullsteamtest.onmicrosoft.com`
+  - test operator UPN: `chad.lampton@fullsteamhosted.com`
 
 ## Current Active Deployment
 
 The repo is no longer only in retargeting mode.
 
-As of 2026-04-16, the lab was deployed into FS Capabilities:
+As of 2026-04-23, the lab is active in FS Capabilities after the subscription
+move into the workforce tenant:
 
-- tenant: `fscaptest.onmicrosoft.com`
+- tenant: `fullsteamhostedtest.onmicrosoft.com`
+- tenant ID: `2fc43150-f428-43e0-8eac-0a547eaa5dc6`
 - subscription: `FS Capabilities - Test External AVD`
 - subscription ID: `56bf2a01-7815-4df3-a396-b9b4d6a55362`
 - resource group: `externalavd-test-rg`
 - VNet: `extavd-testing-centralus`
 - subnet: `avd-hostpools-centralus`
+- planned AAD DS managed domain name: `fshostedtest.onmicrosoft.com`
 - session host private IP: `10.10.0.5`
 - backend private IP: `10.10.0.4`
 - deployment result:
@@ -56,6 +60,15 @@ As of 2026-04-16, the lab was deployed into FS Capabilities:
 The historical `platform-sandbox` deployment remains useful as prior lab
 context, but it is no longer the active environment.
 
+The key current state is:
+
+- the VM and AVD objects survived the tenant move
+- user-facing AVD RBAC did not survive and was recreated in the workforce
+  tenant
+- Entra cloud groups still do not translate on `DBTEST01` for Windows ACL use
+- `Microsoft Entra Domain Services` is now the critical path for UNC / SMB
+  authorization
+
 ## What Is Installed And Working
 
 - `DBTEST01` is deployed and bootstrapped.
@@ -64,8 +77,10 @@ context, but it is no longer the active environment.
   - `\\DBTEST01\RDPCONFIG$`
   - `\\DBTEST01\RDPDATA$`
 - `RDPDISC01` can browse those three shares.
-- `RDPDISC01` and `DBTEST01` both have `AADLoginForWindows` installed and
-  succeeded.
+- `DBTEST01` still has `AADLoginForWindows` installed and succeeded.
+- `RDPDISC01` originally had `AADLoginForWindows` installed and succeeded, but
+  is now under active rejoin repair after the old tenant state was found
+  locally inside Windows.
 - Entra VM login RBAC was previously present on both VMs for the original test
   operator in the source tenant.
 - `RDPWin` is installed on `RDPDISC01`.
@@ -73,7 +88,8 @@ context, but it is no longer the active environment.
 - The FS Capabilities rebuild completed successfully:
   - `db-test-01` exists
   - `rdp-discovery-01` exists
-  - both VMs have `AADLoginForWindows` in succeeded state
+  - both VMs originally had `AADLoginForWindows` in succeeded state after the
+    FS Capabilities rebuild
   - `RDPDISC01` AVD registration extension succeeded
   - AVD workspace, host pool, and app groups were created in
     `externalavd-test-rg`
@@ -230,8 +246,8 @@ Files additionally updated to support FS Capabilities landing-zone reuse:
 - `tofu plan` passed against the FS Capabilities target
 - `tofu apply` completed successfully in FS Capabilities
 - `az` confirmed:
-  - `rdp-discovery-01-aadlogin` succeeded
-  - `db-test-01-aadlogin` succeeded
+  - `AADLoginForWindows` succeeded on both VMs after the initial FS
+    Capabilities rebuild
   - `rdp-discovery-01-avd-register-*` succeeded
   - VM login RBAC was applied for the FS Capabilities Entra operator object
 - Bastion SKU is still `Developer`
@@ -305,16 +321,43 @@ Probe path on the Windows host:
 - discovery notes:
   - `/Users/chad.lampton/Documents/rdp-soft-discovery`
 
-## FYI: FS Capabilities User And Group Findings
+## FYI: Tenant Pivot And Current User And Group Findings
 
-As of 2026-04-17, the following test identities were created in
-`fscaptest.onmicrosoft.com`:
+The active lab subscription was later moved by Fullsteam billing/governance
+from the old external-tenant context into the workforce tenant:
 
-- `CSS0@fscaptest.onmicrosoft.com`
-- `HSC1@fscaptest.onmicrosoft.com`
-- `TCS2@fscaptest.onmicrosoft.com`
+- `fullsteamhostedtest.onmicrosoft.com`
+- tenant ID: `2fc43150-f428-43e0-8eac-0a547eaa5dc6`
 
-Matching security groups were also created:
+The subscription ID remained:
+
+- `56bf2a01-7815-4df3-a396-b9b4d6a55362`
+
+The following workload objects were confirmed still present after the move:
+
+- `db-test-01` / `DBTEST01`
+- `rdp-discovery-01` / `RDPDISC01`
+- host pool: `hp-rdp-discovery-test`
+- desktop app group: `dag-rdp-discovery-test`
+- remote app group: `rag-rdp-discovery-test`
+- workspace: `ws-rdp-discovery-test`
+
+Current active test identities were recreated in
+`fullsteamhostedtest.onmicrosoft.com` on `2026-04-23`:
+
+- `CSS0@fullsteamhostedtest.onmicrosoft.com`
+- `HSC1@fullsteamhostedtest.onmicrosoft.com`
+- `TCS2@fullsteamhostedtest.onmicrosoft.com`
+
+Temporary passwords at creation time:
+
+- `CSS0`: `BKB6vC52wJ3eRTURG94!`
+- `HSC1`: `NHZ*zUPad3uXSTWEL&I6`
+- `TCS2`: `5lLXlDA^BLpe5wkXgCVG`
+
+All three were created with forced password change at next sign-in.
+
+Matching Entra cloud groups were recreated:
 
 - `RDPNT1000`
 - `RDPNT2000`
@@ -326,12 +369,18 @@ Mapping applied:
 - `HSC1` -> `RDPNT2000`
 - `TCS2` -> `RDPNT3000`
 
-AVD-side access that was successfully configured:
+AVD-side access that is currently configured in the new workforce tenant:
 
 - those groups were assigned `Desktop Virtualization User` on
   `dag-rdp-discovery-test`
 - those groups were assigned `Virtual Machine User Login` on
   `rdp-discovery-01`
+
+RBAC recheck after the subscription move showed:
+
+- the VMs and AVD control-plane objects survived
+- the user-facing RBAC at the VM/app-group scopes did not
+- the above AVD RBAC had to be recreated in the new workforce tenant
 
 Updated AVD identity finding:
 
@@ -361,54 +410,35 @@ Updated AVD identity finding:
   - `Message Center Reader` is a narrower workaround than `Global Reader`, but
     still likely too broad for a true PCI-style customer end-user model
 
-Verified internal-user example created on `2026-04-20`:
+Current workforce-tenant staged users created on `2026-04-23`:
 
-- display name: `AVD Test 01`
-- UPN: `avdtest01@fscaptest.onmicrosoft.com`
-- creation method:
-  - `Entra ID -> Users -> New user -> Create new user`
-  - this was created as a tenant-local internal user, not
-    `Create new external user`
-- temporary password was set at creation time
-- `forceChangePasswordNextSignIn = true`
-- tested Microsoft Entra directory role progression:
-  - no Entra role:
-    - hit `AADSTS500208`
-  - `Guest Inviter`:
-    - cleared `AADSTS500208`
-    - did not allow MFA registration
-  - `Reports Reader`:
-    - assigned as an intermediate test role
-    - superseded by the narrower `Message Center Reader` test
-    - do not treat it as the preferred result
-  - `Message Center Reader`:
-    - cleared `AADSTS500208`
-    - allowed MFA registration
-  - `Global Reader`:
-    - cleared `AADSTS500208`
-    - allowed MFA registration
-- current Entra directory roles on the account as of `2026-04-20`:
-  - `Guest Inviter`
-  - `Message Center Reader`
-- assigned Azure access only:
-  - `Desktop Virtualization User` on
-    `dag-rdp-discovery-test`
-  - `Virtual Machine User Login` on `rdp-discovery-01`
-- chat-generated replacement temporary password requested on `2026-04-20`:
-  - `Q7m!P2x#L9v@R4s$T8n^W3k`
-  - note: this value was documented for operator recall only; it was not
-    confirmed as applied to the Entra account in Azure
+- `CSS0@fullsteamhostedtest.onmicrosoft.com`
+  - temporary password: `BKB6vC52wJ3eRTURG94!`
+- `HSC1@fullsteamhostedtest.onmicrosoft.com`
+  - temporary password: `NHZ*zUPad3uXSTWEL&I6`
+- `TCS2@fullsteamhostedtest.onmicrosoft.com`
+  - temporary password: `5lLXlDA^BLpe5wkXgCVG`
+- all three were created as tenant-local users with
+  `forceChangePasswordNextSignIn = true`
+- current staged Entra cloud groups:
+  - `RDPNT1000`
+  - `RDPNT2000`
+  - `RDPNT3000`
+- current mapping:
+  - `CSS0 -> RDPNT1000`
+  - `HSC1 -> RDPNT2000`
+  - `TCS2 -> RDPNT3000`
+- current Azure access:
+  - `Desktop Virtualization User` on `dag-rdp-discovery-test` for all three
+    groups
+  - `Virtual Machine User Login` on `rdp-discovery-01` for all three groups
 
-This account should be treated as the reference AVD test user for proving that
-tenant-local internal users in `fscaptest` can access AVD without
-`Global Reader`.
-
-Important architecture conclusion from `2026-04-20`:
+Important architecture conclusion from `2026-04-23`:
 
 - short-term target state:
-  - named user exists in the Entra External ID tenant
+  - named user exists in the workforce tenant
   - user is required to use MFA
-  - user signs into AVD with that external-tenant identity
+  - user signs into AVD with that workforce-tenant identity
   - user then signs into `RDPWin` separately with app credentials
 - long-term target state:
   - `RDPWin` should eventually consume the Entra identity from the session and
@@ -421,14 +451,16 @@ Important architecture conclusion from `2026-04-20`:
 
 Open design concern for follow-up:
 
-- even though `Message Center Reader` works, requiring any Entra directory role
-  for a customer-style interactive AVD user is probably not the clean final
-  design
-- if a lower-privilege role cannot be found, reconsider whether the external
+- even though the tenant move removed the old external-tenant role workaround,
+  the UNC / SMB model is still blocked until `DBTEST01` is domain-joined
+- if `Microsoft Entra Domain Services` cannot be deployed, reconsider whether
+  the current Windows file-server model is the right backend target for
+  `RDPWin`
   tenant should be the long-term interactive AVD identity plane for PCI-style
   end users
 
-Important DB authorization finding:
+Important DB authorization finding confirmed again after the workforce-tenant
+pivot:
 
 - `DBTEST01` already has the expected folders and shares:
   - `RDPNT1000 -> F:\RDPNT1000`
@@ -445,8 +477,33 @@ Important DB authorization finding:
   current server identity state
 - Azure inspection on `2026-04-20` confirmed there is no existing
   `Microsoft.AAD/domainServices` deployment behind this lab
+- live translation test on `DBTEST01` in the new workforce tenant on
+  `2026-04-23` also failed for:
+  - `AzureAD\\RDPNT1000`
+  - `AzureAD\\RDPNT2000`
+  - `AzureAD\\RDPNT3000`
+  - `fullsteamhostedtest\\RDPNT1000`
+  - `fullsteamhostedtest\\RDPNT2000`
+  - `fullsteamhostedtest\\RDPNT3000`
+- exact failure remained:
+  - `Some or all identity references could not be translated`
 - `DBTEST01` should therefore be treated as a standalone Windows file server
   with `AADLoginForWindows`, not a domain-backed SMB authorization target
+- confirmed `RDPWinPath.txt` backend targets are the logo-specific UNC paths:
+  - `\\DBTest01\RDPNT1000\RDP\RDP01 [CCS]`
+  - `\\DBTest01\RDPNT2000\RDP\RDP02 [HCS]`
+  - `\\DBTest01\RDPNT3000\RDP\RDP03 [TCS]`
+- confirmed `GroupToServer5.txt` ordering note:
+  - `Must match the server drop down order in RDPWinPath5.txt`
+  - `CCS 0`
+  - `HSC 1`
+  - `TCS 2`
+- this confirms the current `RDPWin` client pathing model depends on direct UNC
+  paths under the `RDPNT1000/2000/3000` trees, not just the hidden
+  `RDPAPPS$ / RDPCONFIG$ / RDPDATA$` shares
+- this also confirms the client-side routing config is order-sensitive and not
+  just path-sensitive; any rebuild of the `RDPWin` config files must preserve
+  both the path list and the server-order index mapping
 
 Implication:
 
@@ -467,6 +524,10 @@ Chosen UNC / SMB remediation path:
   - `CSS0 -> RDPNT1000`
   - `HSC1 -> RDPNT2000`
   - `TCS2 -> RDPNT3000`
+- retest the concrete `RDPWinPath.txt` targets:
+  - `CSS0 -> \\DBTest01\RDPNT1000\RDP\RDP01 [CCS]`
+  - `HSC1 -> \\DBTest01\RDPNT2000\RDP\RDP02 [HCS]`
+  - `TCS2 -> \\DBTest01\RDPNT3000\RDP\RDP03 [TCS]`
 
 Until that is complete:
 
@@ -474,6 +535,100 @@ Until that is complete:
 - do not assume UNC visibility failures for `CSS0` are app bugs
 - do not spend more time trying to force Entra-only SMB ACL resolution on the
   standalone `DBTEST01` server
+
+Latest AAD DS prep completed in `fullsteamhostedtest.onmicrosoft.com`:
+
+- `Microsoft.AAD` resource provider registered
+- dedicated subnet created:
+  - VNet: `extavd-testing-centralus`
+  - subnet: `aadds-centralus`
+  - prefix: `10.10.10.0/24`
+- selected managed domain deployment values:
+  - name: `fshostedtest.onmicrosoft.com`
+  - subscription: `FS Capabilities - Test External AVD`
+  - resource group: `externalavd-test-rg`
+  - region: `Central US`
+  - SKU: `Standard`
+  - network:
+    - virtual network: `extavd-testing-centralus`
+    - subnet: `aadds-centralus`
+    - subnet address: `10.10.10.0/24`
+    - network security group: `aadds-nsg`
+  - administrator group:
+    - group: `AAD DC Administrators`
+    - membership type: `Assigned`
+  - notifications:
+    - notify global administrators: `Yes`
+    - notify `AAD DC Administrators`: `Yes`
+  - synchronization:
+    - scope: `All`
+    - filter: `No`
+  - security settings:
+    - TLS 1.2 only mode: `Enable`
+    - NTLM v1 authentication: `Disable`
+    - password synchronization from on-premises: `Disable`
+    - NTLM password synchronization: `Enable`
+    - Kerberos RC4 encryption: `Enable`
+    - Kerberos armoring: `Disable`
+    - LDAP signing: `Enable`
+    - LDAP channel binding: `Enable`
+  - tags:
+    - `Environment = Test`
+    - `Application = RDPWin`
+    - `workload = EntraDomainServices`
+    - `Owner = FSTest`
+    - `Purpose = UNC-SMB-ACL-Lab`
+
+Current AAD DS state:
+
+- `Microsoft Entra Domain Services` now exists in `externalavd-test-rg`
+- managed domain name: `fshostedtest.onmicrosoft.com`
+- latest Azure verification on `2026-04-24` showed:
+  - resource type: `Microsoft.AAD/DomainServices`
+  - provisioning state: `Succeeded`
+  - location: `centralus`
+
+Current `RDPDISC01` repair state:
+
+- `RDPDISC01` was proven to have mixed state after the tenant move:
+  - `IMDS` returned the new workforce tenant
+  - `dsregcmd` kept showing the old tenant
+- the old tenant was then found in local Windows state under:
+  - `HKLM\\SOFTWARE\\Microsoft\\RDInfraAgent`
+  - `HKLM\\SOFTWARE\\Microsoft\\RDInfraAgent\\SxsStack`
+  - `HKLM\\SYSTEM\\CurrentControlSet\\Control\\CloudDomainJoin`
+- those old-tenant values were backed up and removed locally on `RDPDISC01`
+- the first `AADLoginForWindows` uninstall became stuck in `Deleting` even
+  after reboot, guest-agent restart, and `az vm reapply`
+- the local plugin payload was already gone while Azure still held the
+  extension object in `Deleting`, indicating a stuck Azure VM extension state
+- recovery path used on `2026-04-24`:
+  - delete only the VM resource
+  - keep and reuse the existing OS disk and NIC
+  - recreate `rdp-discovery-01`
+  - reinstall `AADLoginForWindows`
+- current recovered join state:
+  - `AzureAdJoined : YES`
+  - `EnterpriseJoined : NO`
+  - `DomainJoined : NO`
+  - `DeviceAuthStatus : SUCCESS`
+- current VM extension/agent state:
+  - `AADLoginForWindows: Succeeded`
+  - guest agent: `Ready`
+- VM login authorization gap found during retest:
+  - `CSS0` was correctly in `RDPNT1000`
+  - `RDPNT1000` still had `Desktop Virtualization User` on
+    `dag-rdp-discovery-test`
+  - `RDPNT1000` was missing `Virtual Machine User Login` on
+    `rdp-discovery-01`
+- fix applied:
+  - `Virtual Machine User Login` was reassigned to `RDPNT1000` on
+    `rdp-discovery-01`
+- current validation result:
+  - Windows App sign-in succeeded with
+    `CSS0@fullsteamhostedtest.onmicrosoft.com`
+  - keep `RDPDISC01` on the Entra-joined model for this test path; do not
+    domain-join it unless the test scope changes
 
 ## FYI: Additional RDP Q&A Design Findings
 

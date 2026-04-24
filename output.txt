@@ -1,0 +1,67 @@
+RDPWin Lab Session Summary
+Date: 2026-04-15
+
+Environment
+- Repo: /Users/chad.lampton/Documents/repo/rdpwin-test-server-lab
+- Azure resource group: rg-rdp-discovery-test
+- Session host: RDPDISC01 / rdp-discovery-01
+- Backend host: DBTEST01 / db-test-01
+
+Major findings
+- Pure RemoteApp is not viable for RDPWin in this lab.
+- Full AVD desktop session works and is the active user-path model.
+- Explorer must remain running. Shell replacement, Explorer kill, and aggressive Start/taskbar lockdown destabilized RDPWin.
+- The Zen license issue on DBTEST01 was real, but it was not the root cause of the RemoteApp crash.
+- The current HKLM Run launcher is unreliable across Entra/AVD users.
+
+Zen licensing
+- Actian CLI showed the installed Zen 16 Cloud Server temporary license had expired on 2026-04-15.
+- License was reactivated later in the session.
+- Btrieve Error 161 cleared after reactivation.
+- RemoteApp still crashed after the license fix, confirming license state was not the main RemoteApp blocker.
+
+User-path findings
+- Chad’s Entra session hit the launcher and logged RDPWin start/exit behavior.
+- Felix is not a local admin on RDPDISC01.
+- Felix did not hit the launcher at all, which points to the current trigger mechanism rather than admin bypass.
+- Bastion remains the admin path only, not the target customer/user path.
+
+Current target architecture
+- AVD desktop stays as the user path.
+- Separate admin and non-admin identities.
+- Replace HKLM Run with a Scheduled Task at user logon.
+- Keep Explorer alive.
+- Launch RDPWin deterministically at logon for non-admin users.
+- Log off the session fully when RDPWin closes.
+- Use Entra security groups as the source of truth for database routing.
+- Add a local broker on RDPDISC01 to choose the correct DB/config for the user at launch.
+- Do not let users browse or select DB paths directly.
+
+What was ruled out
+- RemoteApp as the final access model.
+- Bastion as the user-path test model.
+- Shell replacement as the immediate solution.
+- Unsupported Start-menu hacks as a reliable control.
+
+Docs and plans updated
+- README.md
+- docs/HANDOFF.md
+- docs/TEST_PLAN.md
+- docs/VALIDATION.md
+- docs/RUNBOOK.md
+- docs/ARCHITECTURE.md
+- docs/TOMORROW_TEST_CHECKLIST.md
+- docs/PCI_ALIGNMENT_PLAN.md
+- docs/ACCESS_AND_ROUTING_PLAN.md
+
+GitHub
+- Pushed to origin/main
+- Latest commit from this session: 7262ff4
+- Commit message: Add PCI alignment and access routing plans
+
+Immediate next steps
+1. Replace the current HKLM Run launcher with a Scheduled Task.
+2. Retest with felix.ferdinand@fullsteamhosted.com as the primary non-admin Entra user.
+3. Confirm deterministic RDPWin launch and full logoff on close.
+4. Define Entra security groups for per-database routing.
+5. Implement the local routing broker on RDPDISC01.

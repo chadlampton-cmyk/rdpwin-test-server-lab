@@ -38,14 +38,21 @@ Current PCI-alignment direction says that model should use:
 - separate admin identities for maintenance
 - a deterministic logon trigger, not the current unreliable `HKLM Run` method
 
-Current external-tenant identity findings:
+Current active workforce-tenant identity findings:
 
-- `avdtest01@fscaptest.onmicrosoft.com` was created as an internal user
-- no Entra role caused `AADSTS500208`
-- `Guest Inviter` cleared `AADSTS500208` but did not allow MFA registration
-- `Message Center Reader` allowed MFA registration and AVD sign-in
-- `Message Center Reader` is the current minimum tested working role, but it is
-  probably still too broad for the final customer-style target design
+- the active lab subscription and servers are now in
+  `fullsteamhostedtest.onmicrosoft.com`
+- recreated users:
+  - `CSS0@fullsteamhostedtest.onmicrosoft.com`
+  - `HSC1@fullsteamhostedtest.onmicrosoft.com`
+  - `TCS2@fullsteamhostedtest.onmicrosoft.com`
+- recreated Entra cloud groups:
+  - `RDPNT1000`
+  - `RDPNT2000`
+  - `RDPNT3000`
+- recreated AVD RBAC:
+  - `Desktop Virtualization User` on `dag-rdp-discovery-test`
+  - `Virtual Machine User Login` on `rdp-discovery-01`
 
 Current backend authorization findings:
 
@@ -54,6 +61,10 @@ Current backend authorization findings:
   placeholders
 - the current standalone `DBTEST01` cannot reliably enforce the legacy
   `group -> UNC path` model with Entra-only SMB / NTFS ACLs
+- the same principal-resolution failure was reproduced after the tenant move
+  using:
+  - `AzureAD\\RDPNT1000/2000/3000`
+  - `fullsteamhostedtest\\RDPNT1000/2000/3000`
 
 ## Test Sequence
 
@@ -95,10 +106,9 @@ Confirm:
 
 Current preferred identity test user:
 
-- `avdtest01@fscaptest.onmicrosoft.com`
-- current tested working Entra roles:
-  - `Guest Inviter`
-  - `Message Center Reader`
+- `CSS0@fullsteamhostedtest.onmicrosoft.com`
+- group assignment:
+  - `RDPNT1000`
 
 ### 3. App-Session Shaping
 
@@ -161,6 +171,21 @@ The next backend authorization decision is also settled:
 - stop trying to force Entra-only SMB / NTFS ACL resolution on the standalone
   `DBTEST01`
 - move toward `Microsoft Entra Domain Services` for UNC/share enforcement
+- current prep completed:
+  - `Microsoft.AAD` provider registered
+  - dedicated subnet created:
+    - `aadds-centralus`
+    - `10.10.10.0/24`
+- current live work item:
+  - AAD DS now shows `Succeeded` in Azure for
+    `fshostedtest.onmicrosoft.com`
+  - `RDPDISC01` old-tenant local join state was removed
+  - `RDPDISC01` was rebuilt from the preserved OS disk after the
+    `AADLoginForWindows` delete became stuck
+  - `AADLoginForWindows` now shows `Succeeded`
+  - `dsregcmd /status` now shows `AzureAdJoined : YES`
+  - Windows App login now works for
+    `CSS0@fullsteamhostedtest.onmicrosoft.com`
 
 ## Evidence To Keep
 

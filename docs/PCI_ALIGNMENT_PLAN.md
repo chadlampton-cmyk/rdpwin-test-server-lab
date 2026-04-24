@@ -1,6 +1,6 @@
 # PCI Alignment Plan
 
-Last updated: 2026-04-21.
+Last updated: 2026-04-23.
 
 ## Purpose
 
@@ -31,14 +31,17 @@ The currently supported user path is:
 
 Pure RemoteApp has been tested and is not the active target path for this app.
 
-Current external-tenant identity findings:
+Current workforce-tenant identity findings:
 
-- tenant-local named users in `fscaptest` can sign into AVD
-- AVD RBAC alone is not sufficient for the tested external-tenant user path
-- the current minimum tested working Entra role for MFA registration and AVD
-  access is `Message Center Reader`
-- `Guest Inviter` clears `AADSTS500208` but does not allow MFA registration
-- `Global Reader` also works, but is broader than needed
+- the active tenant is now `fullsteamhostedtest.onmicrosoft.com`
+- named users `CSS0`, `HSC1`, and `TCS2` exist in that tenant
+- Entra cloud groups `RDPNT1000/2000/3000` exist and are mapped one-to-one to
+  those users
+- AVD RBAC is now group-based:
+  - `Desktop Virtualization User` on `dag-rdp-discovery-test`
+  - `Virtual Machine User Login` on `rdp-discovery-01`
+- the old external-tenant role workaround is no longer the active identity
+  path
 
 ## PCI-Relevant Design Principles
 
@@ -99,13 +102,14 @@ The design direction for this lab should satisfy these operational control
    - A stronger PCI-ready path should also rely on a deterministic trigger and
      leave clearer operational evidence when it runs.
 
-5. The current external-tenant identity model is not yet least-privilege clean.
-   - The current minimum tested working role for MFA registration is
-     `Message Center Reader`.
-   - That is narrower than `Global Reader`, but still broader than a
-     customer-style end user should ideally hold.
-   - The external-tenant user model should not yet be treated as the final
-     PCI-aligned identity design.
+5. The current backend identity model is not yet PCI-aligned.
+   - The workforce tenant user and AVD RBAC model is cleaner than the old
+     external-tenant workaround.
+   - But `DBTEST01` still cannot enforce the `group -> UNC path` model with
+     Entra cloud groups alone.
+   - The final PCI-aligned backend design still depends on
+     `Microsoft Entra Domain Services` or another domain-backed SMB
+     authorization layer.
 
 6. Backend UNC / SMB enforcement is not yet PCI-aligned.
    - `DBTEST01` is currently a standalone Windows file server with
