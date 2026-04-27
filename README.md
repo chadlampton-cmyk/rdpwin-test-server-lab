@@ -59,7 +59,7 @@ Copy `scripts/Invoke-RDPWinLabProbe.ps1` to `C:\Temp\Invoke-RDPWinLabProbe.ps1`
 on the Windows host, then run:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
+PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPNT1000','\\DBTEST01\RDPNT2000','\\DBTEST01\RDPNT3000'
 ```
 
 See:
@@ -157,7 +157,7 @@ As of 2026-04-15, the Azure lab was deployed in `platform-sandbox` and included:
 - provisioned with the `AADLoginForWindows` extension
 - bootstrapped with `F:\RDPDiscovery`
 
-Current validated operator findings:
+Historical validated operator findings:
 
 - `RDPDISC01` can reach `\\DBTEST01\RDPAPPS$`
 - `RDPDISC01` can reach `\\DBTEST01\RDPCONFIG$`
@@ -251,23 +251,29 @@ base infrastructure build-out and not more pure RemoteApp troubleshooting. The
 AVD desktop session that auto-launches `RDPWin` is now the active test model in
 the FS Capabilities tenant.
 
-Current `RDPDISC01` recovery state:
+Current recovery and identity state:
 
 - the stale old-tenant local join state was removed from `RDPDISC01`
 - the first `AADLoginForWindows` delete became stuck in Azure control-plane
   state after the local cleanup
-- `rdp-discovery-01` was then rebuilt from the preserved OS disk and existing
-  NIC
+- `rdp-discovery-01` was rebuilt from the preserved OS disk and existing NIC
 - `AADLoginForWindows` was reinstalled successfully on the rebuilt VM
-- `dsregcmd /status` now shows the recovered Entra join:
-  - `AzureAdJoined : YES`
-  - `EnterpriseJoined : NO`
-  - `DomainJoined : NO`
-- `DeviceAuthStatus : SUCCESS`
-- VM sign-in RBAC was restored by assigning `Virtual Machine User Login` back
-  to `RDPNT1000` on `rdp-discovery-01`
 - Windows App sign-in was revalidated successfully with
   `CSS0@fullsteamhostedtest.onmicrosoft.com`
+- the attempted hybrid model was proven incomplete:
+  - `RDPDISC01` could reach `DBTEST01` only with explicit
+    `fshostedtest\\CSS0` SMB auth while it remained Entra joined
+  - `Cloud Kerberos enabled by policy: 0` was observed in the live `CSS0`
+    session
+  - VNet DNS was switched to the AAD DS controllers `10.10.10.5` and
+    `10.10.10.4`
+- the lab then moved to the final working backend model:
+  - Windows App / AVD remains the Entra edge sign-in path
+  - both Windows servers use the AAD DS backend auth model
+  - `DBTEST01` share and NTFS ACLs were normalized across the
+    `RDPNT1000/2000/3000` trees
+  - `RDPWin` now resolves and opens the correct backend database per staged
+    user instead of only working for `CSS0`
 
 ## Current Target Direction
 
@@ -307,17 +313,17 @@ all Entra/AVD users. The next implementation step should therefore replace the
 current launcher trigger with a more reliable logon-time mechanism, such as a
 Scheduled Task.
 
-There is also now a confirmed backend identity gap on `DBTEST01`:
+There is now a confirmed backend identity architecture for the lab:
 
-- no `Microsoft Entra Domain Services` deployment currently exists for the
-  active `fullsteamhostedtest` lab
-- `DBTEST01` cannot reliably enforce the legacy `group -> UNC path` model with
-  Entra-only SMB / NTFS ACLs
-- the chosen repair path for UNC / SMB authorization is:
-  - deploy `Microsoft Entra Domain Services`
-  - join `DBTEST01` to the managed domain
-  - reapply the `RDPNT1000/2000/3000` authorization model with
-    domain-resolvable principals
+- use Entra ID at the edge for Windows App / AVD sign-in
+- use Microsoft Entra Domain Services for backend Windows auth
+- keep both Windows servers on the same managed-domain auth model for
+  `RDPWin`, SMB, and database access
+- do not treat an Entra-joined `RDPDISC01` plus AAD DS-joined `DBTEST01` as the
+  final working design for this app path
+- keep the `RDPNT1000/2000/3000` share and NTFS permissions aligned with the
+  per-user routing model, because incomplete ACLs on `DBTEST01` were the last
+  blocker after the identity model was corrected
 
 See:
 

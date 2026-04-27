@@ -1,6 +1,6 @@
 # Access And Routing Plan
 
-Last updated: 2026-04-20.
+Last updated: 2026-04-27.
 
 ## Purpose
 
@@ -132,28 +132,42 @@ The backend authorization model is split into two layers:
 
 Current conclusion:
 
-- `DBTEST01` does not currently have `Microsoft Entra Domain Services`
 - direct SMB / NTFS ACL assignment to Entra-only cloud identities on
-  `DBTEST01` failed with principal-resolution errors
-- the same failure was reproduced again after the subscription moved into
-  `fullsteamhostedtest.onmicrosoft.com`
-- the local `RDPNT1000/2000/3000` groups on `DBTEST01` should be treated as
-  incomplete placeholders until a domain-backed identity source exists
+  `DBTEST01` failed with principal-resolution errors before AAD DS was added
+- AAD DS was then deployed for `fshostedtest.onmicrosoft.com`
+- `DBTEST01` was joined to the managed domain
+- the first hybrid attempt kept `RDPDISC01` Entra joined while `DBTEST01` was
+  AAD DS joined
+- that attempt still required explicit `fshostedtest\\CSS0` SMB auth and did
+  not produce seamless backend access
+- the resulting architecture decision is:
+  - Entra at the edge for Windows App / AVD sign-in
+  - AAD DS on both Windows servers for backend auth
+- `RDPWin` is now confirmed opening against the correct backend database per
+  staged user in that model once the `RDPNT1000/2000/3000` share and NTFS ACLs
+  are aligned on `DBTEST01`
 
-Implementation plan for UNC / SMB repair:
+Implemented UNC / SMB repair path:
 
 1. Deploy `Microsoft Entra Domain Services` for the active workforce tenant.
 2. Join `DBTEST01` to the managed domain.
-3. Create or sync the `RDPNT1000`, `RDPNT2000`, and `RDPNT3000` routing groups
+3. Join `RDPDISC01` to the managed domain for backend app/auth consistency.
+4. Create or sync the `RDPNT1000`, `RDPNT2000`, and `RDPNT3000` routing groups
    as domain-resolvable principals.
-4. Apply share and NTFS ACLs on `DBTEST01` to those domain principals.
-5. Retest UNC visibility with:
+5. Apply share and NTFS ACLs on `DBTEST01` to those domain principals.
+6. Retest UNC visibility with:
    - `CSS0 -> RDPNT1000`
    - `HSC1 -> RDPNT2000`
    - `TCS2 -> RDPNT3000`
+7. Confirm `RDPWin` opens to the correct backend database for each staged user.
 
-Until that is complete, do not use UNC visibility failures as evidence that the
-`RDPWin` app itself is broken.
+Implementation result:
+
+- `CSS0` first proved the backend auth direction was correct
+- `HSC1` then exposed that `RDPNT2000` had not been permissioned the same way
+  as `RDPNT1000`
+- after normalizing share and NTFS ACLs across all `RDPNT` trees on
+  `DBTEST01`, `RDPWin` routed correctly per staged user
 
 Current active tenant for this plan:
 

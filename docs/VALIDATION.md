@@ -1,6 +1,6 @@
 # Validation
 
-Last updated: 2026-04-24.
+Last updated: 2026-04-27.
 
 ## Static Checks
 
@@ -78,8 +78,10 @@ Important repair history:
 For `DBTEST01`, validate through Bastion or Azure Run Command as well:
 
 - `Get-Volume -DriveLetter F`
-- `Test-Path 'F:\RDPDiscovery'`
-- `Get-SmbShare -Name RDPAPPS$,RDPCONFIG$,RDPDATA$`
+- `Test-Path 'F:\RDPNT1000'`
+- `Test-Path 'F:\RDPNT2000'`
+- `Test-Path 'F:\RDPNT3000'`
+- `Get-SmbShare -Name RDPNT1000,RDPNT2000,RDPNT3000`
 
 Current caution:
 
@@ -147,8 +149,7 @@ PCI-aligned validation should also confirm:
 - the chosen logon trigger runs consistently across users
 - the launch/logoff control leaves a usable audit trail
 - the workforce-tenant user path works without shared credentials
-- the backend UNC model is eventually revalidated after domain-backed SMB
-  authorization is implemented
+- the backend UNC model is revalidated after any future ACL or routing change
 
 Current AAD DS findings to validate:
 
@@ -159,14 +160,14 @@ Current AAD DS findings to validate:
 - latest Azure verification on `2026-04-24` showed
   `provisioningState: Succeeded`
 
-Current `RDPDISC01` join-repair findings to validate:
+Current `RDPDISC01` join-repair findings to retain as history:
 
 - `IMDS` reports tenant `2fc43150-f428-43e0-8eac-0a547eaa5dc6`
 - stale old-tenant values were removed from `RDInfraAgent` and
   `CloudDomainJoin`
 - the stuck `AADLoginForWindows` delete was cleared by rebuilding the VM
   resource while preserving the OS disk and NIC
-- current local join state is recovered:
+- current local join state recorded during the intermediate Entra recovery was:
   - `AzureAdJoined : YES`
   - `EnterpriseJoined : NO`
   - `DomainJoined : NO`
@@ -181,14 +182,43 @@ Current `RDPDISC01` join-repair findings to validate:
   - Windows App sign-in succeeded with
     `CSS0@fullsteamhostedtest.onmicrosoft.com`
 
-Current UNC / SMB blocker findings to validate:
+Current backend auth and routing findings to validate:
 
-- `DBTEST01` still cannot translate these principals into Windows ACL
-  principals:
-  - `AzureAD\\RDPNT1000/2000/3000`
-  - `fullsteamhostedtest\\RDPNT1000/2000/3000`
-- therefore Entra cloud groups should still be treated as AVD-access groups
-  only until `DBTEST01` is domain-joined
+- `DBTEST01` is now domain-joined to `fshostedtest.onmicrosoft.com`
+- the `RDPNT1000` share and parent NTFS ACLs grant
+  `FSHOSTEDTEST\\RDPNT1000`
+- the live backend data folder for `CSS0` is `F:\\RDPNT1000\\RDP\\RDP01`
+- in the original hybrid host attempt, direct UNC access from the `CSS0`
+  session triggered a Windows Security prompt to `DBTEST01`
+- providing `fshostedtest\\CSS0` succeeded
+- `klist cloud_debug` on the Entra-joined host showed:
+  - `Cloud Kerberos enabled by policy: 0`
+  - no cached tickets
+  - no Cloud Referral TGT
+- this ruled out share existence and basic ACLs as the root cause
+- the lab then adopted the final working direction:
+  - Entra at the edge for Windows App / AVD sign-in
+  - AAD DS on both Windows servers for backend app, SMB, and database auth
+- the first post-architecture retest exposed one more live issue:
+  - `HSC1` authenticated successfully to `\\DBTEST01\RDPNT2000`
+  - but still received `Access is denied`
+  - this isolated the final blocker to incomplete `RDPNT2000` share and/or
+    NTFS permissions on `DBTEST01`
+- current confirmed result:
+  - share and NTFS permissions were corrected across the
+    `RDPNT1000/2000/3000` folder trees
+  - `RDPWin` now resolves and opens the correct backend database per staged
+    user
+
+Current final validation checklist:
+
+- Windows App / AVD sign-in still works for the staged user
+- the staged user lands on the expected `RDPNT` backend tree:
+  - `CSS0 -> RDPNT1000`
+  - `HSC1 -> RDPNT2000`
+  - `TCS2 -> RDPNT3000`
+- `RDPWin` opens without the user being misrouted to another staged database
+- the matching share and NTFS ACLs are still present on `DBTEST01`
 
 Use:
 

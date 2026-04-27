@@ -123,18 +123,20 @@ questions without cloning the whole legacy environment.
 
 ## What The Lab Already Proves
 
-As of 2026-04-13, the lab has already validated several parts of the current
-model:
+As of 2026-04-27, the lab has validated the current working app model:
 
 - `RDPDISC01` and `DBTEST01` both exist in Azure
-- both VMs are prepared for Entra VM sign-in with `AADLoginForWindows`
-- Entra VM login RBAC has been applied for the current test operator
-- `DBTEST01` has the expected `F:\RDPDiscovery` layout
-- `DBTEST01` exposes:
-  - `\\DBTEST01\RDPAPPS$`
-  - `\\DBTEST01\RDPCONFIG$`
-  - `\\DBTEST01\RDPDATA$`
-- `RDPDISC01` can reach those three shares over SMB
+- Windows App / AVD remains the Entra entry point for the staged users
+- the backend app path uses `Microsoft Entra Domain Services`
+- `DBTEST01` hosts the staged backend trees:
+  - `F:\RDPNT1000`
+  - `F:\RDPNT2000`
+  - `F:\RDPNT3000`
+- per-user routing is staged as:
+  - `CSS0 -> RDPNT1000`
+  - `HSC1 -> RDPNT2000`
+  - `TCS2 -> RDPNT3000`
+- `RDPWin` now resolves and opens the correct backend database per staged user
 
 That means one important legacy assumption is already reproduced in the lab:
 the session host can reach backend UNC paths on the backend server.
@@ -149,9 +151,8 @@ The biggest remaining unknowns are:
 - exact Actian client/server requirements
 - exact `RDPWin` install sequence on a fresh host
 - exact post-install config files or registry settings
-- exact component that maps AD group membership to initial DB/share/path
-- whether Entra-only is sufficient once the AD-driven routing behavior is
-  exercised
+- exact component that maps AD group membership to initial DB/share/path inside
+  the vendor app stack
 - which adjacent integrations matter for first successful launch
 
 ## How To Use This Note

@@ -32,6 +32,17 @@ AVD-style session host with a temporary Azure-hosted backend server.
 
 The current design direction is no longer Bastion-first for user validation.
 
+## Current Identity Model
+
+- Entra ID remains the edge sign-in plane for Windows App / AVD
+- `RDPDISC01` and `DBTEST01` share the AAD DS-backed backend auth model for
+  `RDPWin`, SMB, and database access
+- per-user routing is enforced through the `RDPNT1000/2000/3000` share trees on
+  `DBTEST01`
+- the final working state required both:
+  - the AAD DS backend model on both Windows servers
+  - correct share and NTFS ACLs across all staged `RDPNT` trees
+
 ## Current Known Limitation
 
 `RDPWin` is currently functional in a full desktop session on `RDPDISC01`, but

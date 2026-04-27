@@ -1,6 +1,6 @@
 # RDPWin Test Plan
 
-Last updated: 2026-04-21.
+Last updated: 2026-04-27.
 
 ## Goal
 
@@ -75,9 +75,9 @@ hold:
 
 - `DBTEST01` is running
 - `RDPDISC01` can reach:
-  - `\\DBTEST01\RDPAPPS$`
-  - `\\DBTEST01\RDPCONFIG$`
-- `\\DBTEST01\RDPDATA$`
+  - `\\DBTEST01\RDPNT1000`
+  - `\\DBTEST01\RDPNT2000`
+  - `\\DBTEST01\RDPNT3000`
 
 Important note:
 
@@ -89,7 +89,7 @@ Important note:
 Run the probe as needed from the Windows host:
 
 ```powershell
-PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPAPPS$','\\DBTEST01\RDPCONFIG$','\\DBTEST01\RDPDATA$'
+PowerShell.exe -ExecutionPolicy Bypass -File C:\Temp\Invoke-RDPWinLabProbe.ps1 -Phase Baseline -TargetHosts DBTEST01 -SharePaths '\\DBTEST01\RDPNT1000','\\DBTEST01\RDPNT2000','\\DBTEST01\RDPNT3000'
 ```
 
 ### 2. Desktop Session Validation
@@ -183,9 +183,29 @@ The next backend authorization decision is also settled:
   - `RDPDISC01` was rebuilt from the preserved OS disk after the
     `AADLoginForWindows` delete became stuck
   - `AADLoginForWindows` now shows `Succeeded`
-  - `dsregcmd /status` now shows `AzureAdJoined : YES`
   - Windows App login now works for
     `CSS0@fullsteamhostedtest.onmicrosoft.com`
+  - `DBTEST01` is now domain-joined to `fshostedtest.onmicrosoft.com`
+  - the original Entra-joined `RDPDISC01` plus AAD DS-joined `DBTEST01`
+    experiment still required explicit `fshostedtest\\CSS0` auth
+  - `Cloud Kerberos enabled by policy: 0` was observed in the live `CSS0`
+    session
+  - VNet DNS was changed to the AAD DS controllers:
+    - `10.10.10.5`
+    - `10.10.10.4`
+  - final working direction is now:
+    - Entra at the edge through Windows App / AVD
+    - AAD DS on both Windows servers for backend auth
+  - `RDPDISC01` was moved off the Entra-joined host path and onto the
+    managed-domain backend model
+  - `RDPWin` opened successfully for `CSS0`
+  - `HSC1` then exposed incomplete permissions on `RDPNT2000`, which proved
+    the remaining problem was per-tree ACL drift on `DBTEST01`, not routing
+    config
+  - share and NTFS permissions were corrected across all
+    `RDPNT1000/2000/3000` trees
+  - `RDPWin` now resolves and opens the correct backend database per staged
+    user
 
 ## Evidence To Keep
 
@@ -213,6 +233,8 @@ local/
   surface
 - session end behavior after closing `RDPWin` is known and documented
 - the resulting configuration is scriptable for future scale-out
+- the `RDPNT1000/2000/3000` share and NTFS ACLs on `DBTEST01` are kept aligned
+  with the staged-user routing model
 - the target identity model is documented as:
   - External ID + MFA for AVD session sign-in now
   - separate `RDPWin` login in the short term

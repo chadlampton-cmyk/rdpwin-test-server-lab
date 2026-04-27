@@ -1,6 +1,6 @@
 # Runbook
 
-Last updated: 2026-04-24.
+Last updated: 2026-04-27.
 
 ## Purpose
 
@@ -84,8 +84,7 @@ Historical deployed state in `platform-sandbox`:
 - DB backend VM: `db-test-01` / `DBTEST01`
 - DB backend private IP: `10.210.10.5`
 - DB backend data root: `F:\RDPDiscovery`
-- `RDPDISC01` can browse `\\DBTEST01\RDPAPPS$`, `\\DBTEST01\RDPCONFIG$`, and
-  `\\DBTEST01\RDPDATA$`
+- `RDPDISC01` could browse the older hidden-share layout on `DBTEST01`
 - both VMs originally had `AADLoginForWindows` in succeeded state
 - VM login RBAC for the original source-tenant test operator was present on
   both VMs
@@ -172,50 +171,58 @@ not the expired Zen license.
 
 ## Current Backend Limitation
 
-`DBTEST01` should currently be treated as a standalone Windows file server with
-`AADLoginForWindows`, not as a domain-backed SMB authorization target.
+The original hybrid experiment of an Entra-joined `RDPDISC01` plus an
+AAD DS-joined `DBTEST01` was proven to be incomplete for seamless `RDPWin`
+backend access.
 
-Current implications:
+Current live findings:
 
-- user-specific UNC / share authorization tied to `RDPNT1000`, `RDPNT2000`, and
-  `RDPNT3000` is not currently trustworthy on the live standalone `DBTEST01`
-- local groups on `DBTEST01` are placeholders, not the final access-control
-  plane
-- live SID translation tests in `fullsteamhostedtest` failed for both:
-  - `AzureAD\\RDPNT1000/2000/3000`
-  - `fullsteamhostedtest\\RDPNT1000/2000/3000`
-- do not spend more time trying to force Entra-only SMB / NTFS ACL resolution
-  on the current server state
+- `DBTEST01` resolves domain principals such as `FSHOSTEDTEST\\RDPNT1000`
+- the active staged share trees are:
+  - `\\DBTEST01\RDPNT1000`
+  - `\\DBTEST01\RDPNT2000`
+  - `\\DBTEST01\RDPNT3000`
+- the `RDPNT1000` share grants:
+  - `FSHOSTEDTEST\\RDPNT1000 : Full`
+  - `DBTEST01\\RDPNT1000 : Full`
+- NTFS on `F:\\RDPNT1000` and `F:\\RDPNT1000\\RDP` grants
+  `FSHOSTEDTEST\\RDPNT1000`
+- the live backend data folder for `CSS0` is `F:\\RDPNT1000\\RDP\\RDP01`
+- manual authentication from the `CSS0` session using
+  `fshostedtest\\CSS0` succeeded against `\\DBTEST01\\RDPNT1000`
+- after the DNS change to the AAD DS controllers, `RDPDISC01` could locate the
+  managed-domain DCs successfully
 
-Chosen remediation path:
+Why the original hybrid host model failed:
 
-- deploy `Microsoft Entra Domain Services`
-- join `DBTEST01` to the managed domain
-- reapply the `RDPNT1000/2000/3000` authorization model with domain-resolvable
-  principals
-- current AAD DS prep already completed:
-  - `Microsoft.AAD` resource provider is `Registered`
-  - dedicated subnet `aadds-centralus` exists in `extavd-testing-centralus`
-- selected AAD DS deployment values:
-  - name: `fshostedtest.onmicrosoft.com`
-  - subscription: `FS Capabilities - Test External AVD`
-  - resource group: `externalavd-test-rg`
-  - region: `Central US`
-  - SKU: `Standard`
-  - VNet: `extavd-testing-centralus`
-  - subnet: `aadds-centralus`
-  - NSG: `aadds-nsg`
-  - administrator group: `AAD DC Administrators`
-  - synchronization scope: `All`
-  - security profile:
-    - TLS 1.2 only mode: `Enable`
-    - NTLM v1 authentication: `Disable`
-    - password synchronization from on-premises: `Disable`
-    - NTLM password synchronization: `Enable`
-    - Kerberos RC4 encryption: `Enable`
-    - Kerberos armoring: `Disable`
-    - LDAP signing: `Enable`
-    - LDAP channel binding: `Enable`
+- the session host `RDPDISC01` was still Microsoft Entra joined
+- the file server `DBTEST01` was Microsoft Entra Domain Services joined
+- `klist cloud_debug` in the live `CSS0` session showed:
+  - `Cloud Kerberos enabled by policy: 0`
+  - no Cloud Referral TGT
+  - no cached tickets for seamless SMB access
+- Windows Security prompted for credentials when `CSS0` tried to reach
+  `\\DBTEST01\\RDPNT1000`
+- this proved the remaining problem was SMB authentication / SSO flow, not
+  missing shares, not missing folders, and not missing ACLs
+
+Current chosen architecture:
+
+- keep Entra ID at the edge for Windows App / AVD sign-in
+- put both Windows servers on the AAD DS backend auth model
+- use AAD DS for `RDPWin`, SMB shares, and database access
+- do not treat the Entra-joined `RDPDISC01` plus AAD DS-joined `DBTEST01` model
+  as the final production-like design for this app
+
+Current confirmed outcome:
+
+- the final working model keeps Entra at the edge and AAD DS on both Windows
+  servers for backend auth
+- `CSS0` proved the architecture, but `HSC1` then exposed incomplete
+  permissions on `RDPNT2000`
+- share and NTFS permissions on `DBTEST01` were corrected across all
+  `RDPNT1000/2000/3000` trees
+- `RDPWin` now resolves and opens the correct backend database per staged user
 - current state:
   - `Microsoft Entra Domain Services` resource exists
   - managed domain: `fshostedtest.onmicrosoft.com`
@@ -237,11 +244,9 @@ Current `RDPDISC01` join-repair status:
   - preserve and reattach the existing NIC
   - recreate the VM
   - reinstall `AADLoginForWindows`
-- current `dsregcmd /status` state is:
-  - `AzureAdJoined : YES`
-  - `EnterpriseJoined : NO`
-  - `DomainJoined : NO`
-  - `DeviceAuthStatus : SUCCESS`
+- note:
+  - the above `dsregcmd` output was the intermediate recovered state before the
+    lab moved `RDPDISC01` onto the managed-domain backend model
 - current VM/extension state:
   - guest agent: `Ready`
   - `AADLoginForWindows: Succeeded`
@@ -254,14 +259,16 @@ Current `RDPDISC01` join-repair status:
 
 ## Current Recommended Operator Flow
 
-1. confirm `AADLoginForWindows` remains in `Succeeded` on `RDPDISC01`
-2. confirm `dsregcmd /status` still shows `AzureAdJoined : YES`
-3. confirm the staged user groups still have both:
+1. confirm the staged user groups still have both:
    - `Desktop Virtualization User` on the desktop app group
    - `Virtual Machine User Login` on `rdp-discovery-01`
-4. use Windows App for workforce-user testing
-5. confirm raw UNC access from `RDPDISC01` to `DBTEST01` after app/config
-   staging, but do not treat that as proof of final user authorization
+2. use Windows App for workforce-user testing
+3. confirm both Windows servers remain on the AAD DS-backed backend auth model
+   before spending time on app-level debugging
+4. if a user cannot reach the correct backend path, validate the matching
+   `RDPNT1000/2000/3000` share and NTFS ACLs on `DBTEST01`
+5. treat raw UNC access from `RDPDISC01` as a useful check, but compare the
+   user's effective `RDPNT` permissions before changing routing files
 6. use Bastion only for admin repair/troubleshooting
 7. if testing install/config drift, run the probe from the host:
    `C:\Temp\Invoke-RDPWinLabProbe.ps1`
@@ -272,6 +279,9 @@ Current `RDPDISC01` join-repair status:
 10. for PCI-aligned implementation, do not rely on the current `HKLM Run`
    launcher as the final control; replace it with a deterministic logon-time
    trigger before treating the design as ready
-11. for UNC / SMB repair, continue with `Microsoft Entra Domain Services`
-    once deployment is complete and `DBTEST01` can be joined to the managed
-    domain
+11. keep the `RDPNT` share trees aligned:
+    - `CSS0 -> RDPNT1000`
+    - `HSC1 -> RDPNT2000`
+    - `TCS2 -> RDPNT3000`
+    because ACL drift on those folders was the last live blocker after the
+    identity model was corrected
