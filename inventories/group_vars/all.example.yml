@@ -44,7 +44,9 @@ vnet_address_space:
   - "10.10.0.0/16"
 subnet_address_prefixes:
   - "10.10.0.0/24"
-custom_dns_servers: []
+custom_dns_servers:
+  - "10.10.10.4"
+  - "10.10.10.5"
 
 # -------------------------------------------------
 # Session host VM settings
@@ -101,7 +103,7 @@ app_group_friendly_name: "RDP Discovery Test RemoteApp"
 desktop_app_group_friendly_name: "RDP Discovery Test Desktop"
 remote_application_name: "RDPWin"
 remote_application_friendly_name: "RDPWin"
-remote_application_path: 'C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe'
+remote_application_path: 'C:\Program Files\ResortDataProcessing\RDPWinMSI\RDPWin.exe'
 enable_public_outbound: true
 enable_aad_login_extension: true
 # Optional Entra principals for Azure RBAC on both Windows VMs.
@@ -110,15 +112,15 @@ enable_aad_login_extension: true
 # - exact group display name
 # - service principal app ID or object ID
 vm_user_login_principals:
-  - "chad.lampton@fullsteamtest.onmicrosoft.com"
+  - "chad.lampton@fullsteamhostedtest.onmicrosoft.com"
 vm_admin_login_principals:
-  - "chad.lampton@fullsteamtest.onmicrosoft.com"
+  - "chad.lampton@fullsteamhostedtest.onmicrosoft.com"
 avd_user_principals:
-  - "chad.lampton@fullsteamtest.onmicrosoft.com"
+  - "chad.lampton@fullsteamhostedtest.onmicrosoft.com"
 # Prefer the split lists below for new deployments so desktop and RemoteApp
 # access can be granted independently.
 avd_desktop_user_principals:
-  - "chad.lampton@fullsteamtest.onmicrosoft.com"
+  - "chad.lampton@fullsteamhostedtest.onmicrosoft.com"
 avd_remoteapp_user_principals: []
 # Raw object IDs are also supported when you want to bypass name lookup.
 vm_user_login_principal_ids: []

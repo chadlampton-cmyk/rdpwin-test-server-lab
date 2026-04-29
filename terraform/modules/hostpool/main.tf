@@ -23,7 +23,7 @@ resource "azurerm_virtual_desktop_host_pool" "this" {
   preferred_app_group_type = "RailApplications"
   friendly_name            = var.friendly_name
   start_vm_on_connect      = true
-  custom_rdp_properties    = "redirectclipboard:i:1;redirectprinters:i:1;drivestoredirect:s:;devicestoredirect:s:;redirectwebauthn:i:1;use multimon:i:1;enablerdsaadauth:i:1;"
+  custom_rdp_properties    = "redirectclipboard:i:1;redirectprinters:i:1;drivestoredirect:s:;devicestoredirect:s:;redirectwebauthn:i:1;use multimon:i:1;enablerdsaadauth:i:1;enablecredsspsupport:i:1;videoplaybackmode:i:1;audiomode:i:0;redirectcomports:i:1;redirectsmartcards:i:1;usbdevicestoredirect:s:;"
   tags                     = var.tags
 }
 

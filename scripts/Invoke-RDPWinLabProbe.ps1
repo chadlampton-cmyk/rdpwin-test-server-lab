@@ -5,9 +5,15 @@ param(
 
     [string]$OutputRoot = 'C:\Temp\RDPWinLab',
 
-    [string]$RDPWinRoot = 'C:\ProgramData\ResortDataProcessing\RDPWin',
+    [string[]]$RDPWinRoots = @(
+        'C:\ProgramData\ResortDataProcessing\RDPWin',
+        'C:\Program Files\ResortDataProcessing\RDPWinMSI'
+    ),
 
-    [string]$RDPWinExe = 'C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe',
+    [string[]]$RDPWinExeCandidates = @(
+        'C:\ProgramData\ResortDataProcessing\RDPWin\RDPWin5Client\RDPWin.exe',
+        'C:\Program Files\ResortDataProcessing\RDPWinMSI\RDPWin.exe'
+    ),
 
     [string[]]$TargetHosts = @('DB01', 'DB02'),
 
@@ -19,7 +25,13 @@ param(
 
     [int]$MonitorRDPWinSeconds = 0,
 
-    [switch]$CollectConfigText
+    [switch]$CollectConfigText,
+
+    [switch]$EnableLocalDumps,
+
+    [string]$LocalDumpRoot = 'C:\ProgramData\RDPWinLab\Dumps',
+
+    [int]$CrashEventLookbackHours = 12
 )
 
 Set-StrictMode -Version 2.0
@@ -274,101 +286,112 @@ function Get-InstallerInventory {
     }
 }
 
-function Get-RDPWinExeState {
-    $exists = Test-Path -Path $RDPWinExe
-    if (-not $exists) {
-        return [pscustomobject]@{
-            Path = $RDPWinExe
-            Exists = $false
-            LengthKB = $null
-            LastWriteTime = $null
-            Sha256 = ''
-            ProductVersion = ''
-            FileVersion = ''
+function Get-RDPWinExeStates {
+    foreach ($path in $RDPWinExeCandidates | Select-Object -Unique) {
+        $exists = Test-Path -Path $path
+        if (-not $exists) {
+            [pscustomobject]@{
+                Path = $path
+                Exists = $false
+                LengthKB = $null
+                LastWriteTime = $null
+                Sha256 = ''
+                ProductVersion = ''
+                FileVersion = ''
+            }
+            continue
         }
-    }
 
-    $item = Get-Item -Path $RDPWinExe
-    $versionInfo = $item.VersionInfo
-    [pscustomobject]@{
-        Path = $RDPWinExe
-        Exists = $true
-        LengthKB = [math]::Round($item.Length / 1KB, 2)
-        LastWriteTime = $item.LastWriteTime
-        Sha256 = (Get-FileHash -Path $RDPWinExe -Algorithm SHA256).Hash
-        ProductVersion = $versionInfo.ProductVersion
-        FileVersion = $versionInfo.FileVersion
+        $item = Get-Item -Path $path
+        $versionInfo = $item.VersionInfo
+        [pscustomobject]@{
+            Path = $path
+            Exists = $true
+            LengthKB = [math]::Round($item.Length / 1KB, 2)
+            LastWriteTime = $item.LastWriteTime
+            Sha256 = (Get-FileHash -Path $path -Algorithm SHA256).Hash
+            ProductVersion = $versionInfo.ProductVersion
+            FileVersion = $versionInfo.FileVersion
+        }
     }
 }
 
 function Get-RDPWinFileInventory {
-    if (-not (Test-Path -Path $RDPWinRoot)) {
-        return @([pscustomobject]@{
-            RootPath = $RDPWinRoot
-            Exists = $false
-            ItemType = ''
-            RelativePath = ''
-            LengthKB = $null
-            LastWriteTime = $null
-            Sha256 = ''
-        })
-    }
-
-    $root = Get-Item -Path $RDPWinRoot
-    Get-ChildItem -Path $RDPWinRoot -Force -Recurse -ErrorAction SilentlyContinue |
-        Where-Object {
-            $relative = $_.FullName.Substring($root.FullName.Length).TrimStart('\')
-            ($relative -notmatch '\\') -or ($relative -match '^RDPWin5Client\\[^\\]+$')
-        } |
-        Sort-Object FullName |
-        Select-Object -First 700 |
-        ForEach-Object {
-            $hash = ''
-            if (-not $_.PSIsContainer -and $_.Length -le 20MB) {
-                try {
-                    $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash
-                }
-                catch {
-                    $hash = ''
-                }
-            }
-
+    foreach ($rootPath in $RDPWinRoots | Select-Object -Unique) {
+        if (-not (Test-Path -Path $rootPath)) {
             [pscustomobject]@{
-                RootPath = $RDPWinRoot
-                Exists = $true
-                ItemType = if ($_.PSIsContainer) { 'Directory' } else { 'File' }
-                RelativePath = $_.FullName.Substring($root.FullName.Length).TrimStart('\')
-                LengthKB = if ($_.PSIsContainer) { $null } else { [math]::Round($_.Length / 1KB, 2) }
-                LastWriteTime = $_.LastWriteTime
-                Sha256 = $hash
+                RootPath = $rootPath
+                Exists = $false
+                ItemType = ''
+                RelativePath = ''
+                LengthKB = $null
+                LastWriteTime = $null
+                Sha256 = ''
             }
+            continue
         }
+
+        $root = Get-Item -Path $rootPath
+        Get-ChildItem -Path $rootPath -Force -Recurse -ErrorAction SilentlyContinue |
+            Where-Object {
+                $relative = $_.FullName.Substring($root.FullName.Length).TrimStart('\')
+                ($relative -notmatch '\\') -or
+                ($relative -match '^RDPWin5Client\\[^\\]+$') -or
+                ($relative -match '^(Logs|Config|RDP)\\')
+            } |
+            Sort-Object FullName |
+            Select-Object -First 700 |
+            ForEach-Object {
+                $hash = ''
+                if (-not $_.PSIsContainer -and $_.Length -le 20MB) {
+                    try {
+                        $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash
+                    }
+                    catch {
+                        $hash = ''
+                    }
+                }
+
+                [pscustomobject]@{
+                    RootPath = $rootPath
+                    Exists = $true
+                    ItemType = if ($_.PSIsContainer) { 'Directory' } else { 'File' }
+                    RelativePath = $_.FullName.Substring($root.FullName.Length).TrimStart('\')
+                    LengthKB = if ($_.PSIsContainer) { $null } else { [math]::Round($_.Length / 1KB, 2) }
+                    LastWriteTime = $_.LastWriteTime
+                    Sha256 = $hash
+                }
+            }
+    }
 }
 
 function Get-RDPWinConfigCandidates {
-    if (-not (Test-Path -Path $RDPWinRoot)) {
-        return @()
-    }
-
-    $root = Get-Item -Path $RDPWinRoot
     $namePattern = 'GroupToServer|RDPWinPath|\.config$|\.ini$|\.xml$|\.json$|\.txt$|\.dsn$|\.udl$'
 
-    Get-ChildItem -Path $RDPWinRoot -Force -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object {
-            $relative = $_.FullName.Substring($root.FullName.Length).TrimStart('\')
-            ($relative -notmatch '\\[^\\]+\\') -and
-            ($_.Name -match $namePattern)
-        } |
-        Sort-Object FullName |
-        Select-Object -First 200 |
-        ForEach-Object {
-            [pscustomobject]@{
-                RelativePath = $_.FullName.Substring($root.FullName.Length).TrimStart('\')
-                LengthKB = [math]::Round($_.Length / 1KB, 2)
-                LastWriteTime = $_.LastWriteTime
-                Sha256 = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash
-            }
+    foreach ($rootPath in $RDPWinRoots | Select-Object -Unique) {
+        if (-not (Test-Path -Path $rootPath)) {
+            continue
         }
+
+        $root = Get-Item -Path $rootPath
+        Get-ChildItem -Path $rootPath -Force -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object {
+                $relative = $_.FullName.Substring($root.FullName.Length).TrimStart('\')
+                ($relative -notmatch '\\[^\\]+\\') -and
+                ($_.Name -match $namePattern)
+            } |
+            Sort-Object FullName |
+            Select-Object -First 200 |
+            ForEach-Object {
+                [pscustomobject]@{
+                    RootPath = $rootPath
+                    RelativePath = $_.FullName.Substring($root.FullName.Length).TrimStart('\')
+                    LengthKB = [math]::Round($_.Length / 1KB, 2)
+                    LastWriteTime = $_.LastWriteTime
+                    Sha256 = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash
+                }
+            }
+    }
 }
 
 function Get-RedactedText {
@@ -380,17 +403,25 @@ function Get-RedactedText {
 }
 
 function Get-ConfigText {
-    if (-not $CollectConfigText -or -not (Test-Path -Path $RDPWinRoot)) {
+    if (-not $CollectConfigText) {
         return @()
     }
 
     $allowList = @('GroupToServer5.txt', 'RDPWinPath5.txt')
-    foreach ($name in $allowList) {
-        $path = Join-Path -Path $RDPWinRoot -ChildPath $name
-        if (Test-Path -Path $path) {
-            [pscustomobject]@{
-                RelativePath = $name
-                Text = Get-RedactedText -Path $path
+
+    foreach ($rootPath in $RDPWinRoots | Select-Object -Unique) {
+        if (-not (Test-Path -Path $rootPath)) {
+            continue
+        }
+
+        foreach ($name in $allowList) {
+            $path = Join-Path -Path $rootPath -ChildPath $name
+            if (Test-Path -Path $path) {
+                [pscustomobject]@{
+                    RootPath = $rootPath
+                    RelativePath = $name
+                    Text = Get-RedactedText -Path $path
+                }
             }
         }
     }
@@ -403,28 +434,37 @@ function Get-RDPWinProcesses {
 }
 
 function Get-RecentlyChangedRDPWinFiles {
-    if (-not (Test-Path -Path $RDPWinRoot)) {
-        return @()
-    }
-
-    $root = Get-Item -Path $RDPWinRoot
     $cutoff = (Get-Date).AddDays(-7)
-    Get-ChildItem -Path $RDPWinRoot -Force -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.LastWriteTime -ge $cutoff } |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 200 |
-        ForEach-Object {
-            [pscustomobject]@{
-                RelativePath = $_.FullName.Substring($root.FullName.Length).TrimStart('\')
-                LengthKB = [math]::Round($_.Length / 1KB, 2)
-                LastWriteTime = $_.LastWriteTime
+
+    foreach ($rootPath in $RDPWinRoots | Select-Object -Unique) {
+        if (-not (Test-Path -Path $rootPath)) {
+            continue
+        }
+
+        $root = Get-Item -Path $rootPath
+        Get-ChildItem -Path $rootPath -Force -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -ge $cutoff } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 200 |
+            ForEach-Object {
+                [pscustomobject]@{
+                    RootPath = $rootPath
+                    RelativePath = $_.FullName.Substring($root.FullName.Length).TrimStart('\')
+                    LengthKB = [math]::Round($_.Length / 1KB, 2)
+                    LastWriteTime = $_.LastWriteTime
+                }
             }
         }
+    }
 }
 
 function Get-RDPWinLogCandidates {
     $candidateRoots = New-Object System.Collections.Generic.List[string]
-    $candidateRoots.Add($RDPWinRoot) | Out-Null
+    foreach ($rootPath in $RDPWinRoots | Select-Object -Unique) {
+        if ($rootPath) {
+            $candidateRoots.Add($rootPath) | Out-Null
+        }
+    }
 
     if ($env:ProgramData) {
         $candidateRoots.Add((Join-Path -Path $env:ProgramData -ChildPath 'ResortDataProcessing')) | Out-Null
@@ -481,6 +521,97 @@ function Get-RelevantTcpConnections {
         Select-Object LocalAddress, LocalPort, RemoteAddress, RemotePort, State, OwningProcess, CreationTime
 }
 
+function Enable-RDPWinLocalDumpCapture {
+    $dumpFolder = $LocalDumpRoot
+    if (-not (Test-Path -Path $dumpFolder)) {
+        New-Item -Path $dumpFolder -ItemType Directory -Force | Out-Null
+    }
+
+    $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\RDPWin.exe'
+    if (-not (Test-Path -Path $regPath)) {
+        New-Item -Path $regPath -Force | Out-Null
+    }
+
+    New-ItemProperty -Path $regPath -Name 'DumpFolder' -PropertyType ExpandString -Value $dumpFolder -Force | Out-Null
+    New-ItemProperty -Path $regPath -Name 'DumpType' -PropertyType DWord -Value 2 -Force | Out-Null
+    New-ItemProperty -Path $regPath -Name 'DumpCount' -PropertyType DWord -Value 10 -Force | Out-Null
+}
+
+function Get-LocalDumpConfiguration {
+    $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\RDPWin.exe'
+    $values = Get-RegistryValues -Path $regPath
+    [pscustomobject]@{
+        RegistryPath = $regPath
+        EnabledByProbe = [bool]$EnableLocalDumps
+        DumpRoot = $LocalDumpRoot
+        Exists = [bool](Test-Path -Path $regPath)
+        Values = $values
+    }
+}
+
+function Get-LocalDumpInventory {
+    if (-not (Test-Path -Path $LocalDumpRoot)) {
+        return @()
+    }
+
+    Get-ChildItem -Path $LocalDumpRoot -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 50 |
+        ForEach-Object {
+            [pscustomobject]@{
+                Name = $_.Name
+                FullName = $_.FullName
+                LengthMB = [math]::Round($_.Length / 1MB, 2)
+                LastWriteTime = $_.LastWriteTime
+            }
+        }
+}
+
+function Get-RelevantCrashEvents {
+    if (-not (Get-Command -Name Get-WinEvent -ErrorAction SilentlyContinue)) {
+        return @()
+    }
+
+    $startTime = (Get-Date).AddHours(-1 * [math]::Abs($CrashEventLookbackHours))
+    $providerNames = @(
+        'Application Error',
+        'Windows Error Reporting',
+        '.NET Runtime',
+        'Application Hang',
+        'SideBySide'
+    )
+
+    $events = New-Object System.Collections.Generic.List[object]
+    foreach ($providerName in $providerNames) {
+        try {
+            Get-WinEvent -FilterHashtable @{
+                LogName = 'Application'
+                ProviderName = $providerName
+                StartTime = $startTime
+            } -ErrorAction Stop |
+                Where-Object {
+                    $_.Message -match 'RDPWin|Resort|Actian|Zen|Pervasive'
+                } |
+                Select-Object -First 100 |
+                ForEach-Object {
+                    $events.Add([pscustomobject]@{
+                        TimeCreated = $_.TimeCreated
+                        Id = $_.Id
+                        LevelDisplayName = $_.LevelDisplayName
+                        ProviderName = $_.ProviderName
+                        LogName = $_.LogName
+                        MachineName = $_.MachineName
+                        Message = $_.Message -replace '\s+', ' '
+                    }) | Out-Null
+                }
+        }
+        catch {
+        }
+    }
+
+    $events.ToArray() | Sort-Object TimeCreated -Descending
+}
+
 Invoke-Collector -Name 'summary' -ScriptBlock {
     Write-JsonFile -FileName '00_summary.json' -InputObject ([pscustomobject]@{
         AssessmentType = 'RDPWinLabProbe'
@@ -489,14 +620,17 @@ Invoke-Collector -Name 'summary' -ScriptBlock {
         ComputerName = $computerName
         UserName = Get-CurrentUserLabel
         OutputDirectory = $outputDirectory
-        RDPWinRoot = $RDPWinRoot
-        RDPWinExe = $RDPWinExe
+        RDPWinRoots = $RDPWinRoots
+        RDPWinExeCandidates = $RDPWinExeCandidates
         TargetHosts = $TargetHosts
         TargetPorts = $TargetPorts
         SharePaths = $SharePaths
         InstallerPaths = $InstallerPaths
         CollectConfigText = [bool]$CollectConfigText
         MonitorRDPWinSeconds = $MonitorRDPWinSeconds
+        EnableLocalDumps = [bool]$EnableLocalDumps
+        LocalDumpRoot = $LocalDumpRoot
+        CrashEventLookbackHours = $CrashEventLookbackHours
     }) -Depth 5
 }
 
@@ -566,7 +700,7 @@ Invoke-Collector -Name 'shares' -ScriptBlock {
 
 Invoke-Collector -Name 'rdpwin_inventory' -ScriptBlock {
     Write-CsvFile -FileName '08_rdpwin_file_inventory.csv' -InputObject @(Get-RDPWinFileInventory)
-    Write-JsonFile -FileName '08a_rdpwin_exe_state.json' -InputObject (Get-RDPWinExeState) -Depth 4
+    Write-JsonFile -FileName '08a_rdpwin_exe_state.json' -InputObject @(Get-RDPWinExeStates) -Depth 4
     Write-CsvFile -FileName '08b_installer_inventory_optional.csv' -InputObject @(Get-InstallerInventory)
 }
 
@@ -618,6 +752,18 @@ Invoke-Collector -Name 'recent_files' -ScriptBlock {
 
 Invoke-Collector -Name 'log_candidates' -ScriptBlock {
     Write-CsvFile -FileName '15_log_candidates.csv' -InputObject @(Get-RDPWinLogCandidates)
+}
+
+if ($EnableLocalDumps) {
+    Invoke-Collector -Name 'enable_local_dumps' -ScriptBlock {
+        Enable-RDPWinLocalDumpCapture
+    }
+}
+
+Invoke-Collector -Name 'crash_dumps_and_events' -ScriptBlock {
+    Write-JsonFile -FileName '16_local_dump_config.json' -InputObject (Get-LocalDumpConfiguration) -Depth 6
+    Write-CsvFile -FileName '16a_local_dump_inventory.csv' -InputObject @(Get-LocalDumpInventory)
+    Write-CsvFile -FileName '16b_application_crash_events.csv' -InputObject @(Get-RelevantCrashEvents)
 }
 
 Write-CsvFile -FileName '99_collectors.csv' -InputObject $collectors.ToArray()

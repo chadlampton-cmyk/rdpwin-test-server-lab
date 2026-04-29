@@ -23,6 +23,10 @@ argument_specs:
       lab_tofu_expected_subscription_name:
         type: str
         required: false
+      lab_tofu_targets:
+        type: list
+        elements: str
+        required: false
       project_name:
         type: str
         required: true

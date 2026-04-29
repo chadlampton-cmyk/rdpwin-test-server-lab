@@ -167,16 +167,17 @@ Historical validated operator findings:
   - `RDP Discovery Test RemoteApp`
   - `RDP Discovery Test Desktop`
 - `RDPDISC01` AVD session-host status is now `Available`
-- pure `RDPWin` RemoteApp launch currently fails after logon, while full desktop
-  launch works
-- the active user path is now the desktop app group, not the RemoteApp group
-- desktop-session shaping has been applied on `RDPDISC01` so non-admin users
-  auto-launch `RDPWin` and log off when it closes
+- the current host-pool preference is `RemoteApp` / `RailApplications`
+- `RDPWin` is published from:
+  `C:\Program Files\ResortDataProcessing\RDPWinMSI\RDPWin.exe`
+- printer redirection is enabled on the live host pool
+- earlier desktop-session shaping and pure-RemoteApp crash history should be
+  treated as historical context, not the current declared target state
 - the temporary Zen license on `DBTEST01` was confirmed expired on
   `2026-04-15`, then reactivated
 - `Btrieve Error 161` cleared after the Zen license was reactivated
-- a post-license retest proved pure RemoteApp still crashes, so the license was
-  not the root cause of the RemoteApp failure
+- the earlier post-license crash finding remains useful history, but it should
+  not be used to describe the current published-app setup without a fresh retest
 - current DB-side findings still worth tracking include:
   - `Actian Zen Cloud Server` running
   - `RDPWin Monitor GDS Reservations` running
@@ -246,10 +247,10 @@ Current staged users and groups in `fullsteamhostedtest`:
   - `HSC1 -> RDPNT2000`
   - `TCS2 -> RDPNT3000`
 
-The next work is validating and refining the desktop-session model, not more
-base infrastructure build-out and not more pure RemoteApp troubleshooting. The
-AVD desktop session that auto-launches `RDPWin` is now the active test model in
-the FS Capabilities tenant.
+The next work is validating and refining the published `RemoteApp` model and
+the backend dependency chain, not more base infrastructure build-out. Earlier
+desktop-session shaping remains useful lab history, but it is no longer the
+best single-line description of the active setup in the FS Capabilities tenant.
 
 Current recovery and identity state:
 

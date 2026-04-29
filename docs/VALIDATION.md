@@ -97,10 +97,12 @@ Current caution:
 
 Current expected state:
 
-- `RDPWin` launches from the desktop-shaped AVD session
-- pure RemoteApp still fails after logon
-- the Zen temporary license issue was fixed, but that did not change the
-  RemoteApp failure
+- the `RDPWin` published app path points to
+  `C:\Program Files\ResortDataProcessing\RDPWinMSI\RDPWin.exe`
+- the host pool custom RDP properties include `redirectprinters:i:1`
+- the session host remains `Available` and `Succeeded`
+- user entitlement on `rag-rdp-discovery-test` is present for the staged test
+  user or group being validated
 
 Current backend findings to validate:
 
@@ -109,15 +111,15 @@ Current backend findings to validate:
 - the Zen temporary license was directly shown as `Expired` on `2026-04-15`
 - the Zen license was reactivated afterward
 - `Btrieve Error 161` cleared after the license fix
-- RemoteApp still fails, so the license issue was not the RemoteApp root cause
+- the old RemoteApp crash history remains useful background, but should only be
+  used after a fresh reproduction if launch problems return
 
 Current session-shaping findings to validate:
 
-- `RDPWin` auto-launches from the desktop session
-- closing `RDPWin` logs off the session
-- `Server Manager` is suppressed at logon
-- aggressive Start/taskbar restrictions were rolled back
-- `explorer.exe` is intentionally left running
+- only validate desktop-shaping behavior if you are intentionally testing the
+  older fallback model
+- do not assume the desktop-launcher scaffold is part of the active RemoteApp
+  path
 - current `HKLM Run` launcher behavior is not consistent across all Entra users
 
 Current workforce-tenant identity findings to validate:

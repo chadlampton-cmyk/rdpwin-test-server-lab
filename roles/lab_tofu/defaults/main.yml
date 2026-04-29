@@ -6,3 +6,4 @@ lab_tofu_plan_path: "/tmp/rdpwin-lab.tfplan"
 lab_tofu_tfvars_path: "{{ lab_tofu_tf_dir }}/ansible.auto.tfvars.json"
 lab_tofu_expected_subscription_id: ""
 lab_tofu_expected_subscription_name: ""
+lab_tofu_targets: []

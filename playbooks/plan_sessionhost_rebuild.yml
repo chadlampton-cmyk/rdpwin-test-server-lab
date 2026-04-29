@@ -1,0 +1,11 @@
+---
+- name: Plan session-host-only rebuild
+  hosts: localhost
+  gather_facts: false
+  vars:
+    lab_tofu_targets:
+      - module.hostpool.time_rotating.registration
+      - module.hostpool.azurerm_virtual_desktop_host_pool_registration_info.this
+      - module.sessionhost
+  roles:
+    - role: lab_tofu

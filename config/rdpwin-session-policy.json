@@ -1,0 +1,120 @@
+{
+  "Version": 1,
+  "ApplyToUnmatchedUsers": false,
+  "RestrictedUserAccounts": [
+    "FSHOSTEDTEST\\CSS0",
+    "FSHOSTEDTEST\\HSC1",
+    "FSHOSTEDTEST\\TCS2"
+  ],
+  "AppLocker": {
+    "Enabled": false,
+    "Mode": "AuditOnly",
+    "AllowEnforcedMode": false,
+    "BroadExeAllowlist": true,
+    "RestrictedLocalGroup": "RDPWinLabRestrictedUsers",
+    "AllowedPaths": [
+      "%WINDIR%\\*",
+      "%PROGRAMFILES%\\*",
+      "%PROGRAMFILES(X86)%\\*",
+      "C:\\ProgramData\\RDPWinLab\\*",
+      "C:\\ProgramData\\ResortDataProcessing\\RDPWin\\*",
+      "C:\\Program Files\\ResortDataProcessing\\RDPWinMSI\\*"
+    ],
+    "Notes": "Safe default: AuditOnly + BroadExeAllowlist true — AppLocker does not block executables; it only logs. Use Event Viewer AppLocker Operational to build a tight list, then test Enforced in a maintenance window. If locked out with Enforced, use Azure VM Run Command: Stop-Service AppIDSvc -Force; Set-Service AppIDSvc -StartupType Disabled."
+  },
+  "Profiles": [
+    {
+      "Name": "CSS",
+      "MatchPatterns": [
+        "^CSS\\d*$",
+        "^[^\\\\]+\\\\CSS\\d*$",
+        "^CSS\\d+@"
+      ],
+      "AutoLaunchRDPWin": true,
+      "LogoffOnExit": true,
+      "Policy": {
+        "DisableTaskbarSettings": true,
+        "DisableTrayContextMenu": true,
+        "LockTaskbar": true,
+        "DisableStartMenuChanges": true,
+        "HideStartMenuMorePrograms": true,
+        "HideStartMenuMostUsed": true,
+        "DisableSearchUI": true,
+        "DisableWindowsHotkeys": true,
+        "HideNotificationArea": false,
+        "RemoveRunMenu": true,
+        "HideCommonProgramGroups": true,
+        "HideRecentDocumentsMenu": true,
+        "DisableTaskbarToolbars": true,
+        "RemoveHelpFromStartMenu": true,
+        "DisableNotificationCenter": true,
+        "DisableStartMenuProgramTracking": true,
+        "RemoveShutdownFromStartMenu": false,
+        "BlockControlPanel": false,
+        "DisableRegistryEditor": true
+      }
+    },
+    {
+      "Name": "HSC",
+      "MatchPatterns": [
+        "^HSC\\d*$",
+        "^[^\\\\]+\\\\HSC\\d*$",
+        "^HSC\\d+@"
+      ],
+      "AutoLaunchRDPWin": true,
+      "LogoffOnExit": true,
+      "Policy": {
+        "DisableTaskbarSettings": true,
+        "DisableTrayContextMenu": true,
+        "LockTaskbar": true,
+        "DisableStartMenuChanges": true,
+        "HideStartMenuMorePrograms": true,
+        "HideStartMenuMostUsed": true,
+        "DisableSearchUI": true,
+        "DisableWindowsHotkeys": true,
+        "HideNotificationArea": false,
+        "RemoveRunMenu": true,
+        "HideCommonProgramGroups": true,
+        "HideRecentDocumentsMenu": true,
+        "DisableTaskbarToolbars": true,
+        "RemoveHelpFromStartMenu": true,
+        "DisableNotificationCenter": true,
+        "DisableStartMenuProgramTracking": true,
+        "RemoveShutdownFromStartMenu": false,
+        "BlockControlPanel": false,
+        "DisableRegistryEditor": true
+      }
+    },
+    {
+      "Name": "TCS",
+      "MatchPatterns": [
+        "^TCS\\d*$",
+        "^[^\\\\]+\\\\TCS\\d*$",
+        "^TCS\\d+@"
+      ],
+      "AutoLaunchRDPWin": true,
+      "LogoffOnExit": true,
+      "Policy": {
+        "DisableTaskbarSettings": true,
+        "DisableTrayContextMenu": true,
+        "LockTaskbar": true,
+        "DisableStartMenuChanges": true,
+        "HideStartMenuMorePrograms": true,
+        "HideStartMenuMostUsed": true,
+        "DisableSearchUI": true,
+        "DisableWindowsHotkeys": true,
+        "HideNotificationArea": false,
+        "RemoveRunMenu": true,
+        "HideCommonProgramGroups": true,
+        "HideRecentDocumentsMenu": true,
+        "DisableTaskbarToolbars": true,
+        "RemoveHelpFromStartMenu": true,
+        "DisableNotificationCenter": true,
+        "DisableStartMenuProgramTracking": true,
+        "RemoveShutdownFromStartMenu": false,
+        "BlockControlPanel": false,
+        "DisableRegistryEditor": true
+      }
+    }
+  ]
+}

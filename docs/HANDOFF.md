@@ -126,13 +126,16 @@ The key current state is:
   - use `localadmin` for maintenance/troubleshooting
 - AVD / Windows App path:
   - workspace friendly name: `RDP Discovery Test Workspace`
-  - current host pool preferred app group type: `Desktop`
-  - the original source-tenant test user previously had:
-    - `Desktop Virtualization User` on `dag-rdp-discovery-test`
-    - no entitlement on `rag-rdp-discovery-test`
+  - current host pool preferred app group type: `RailApplications`
+  - `RDPWin` is published from:
+    `C:\Program Files\ResortDataProcessing\RDPWinMSI\RDPWin.exe`
+  - `CSS0@fullsteamhostedtest.onmicrosoft.com` was assigned
+    `Desktop Virtualization User` on `rag-rdp-discovery-test`
+  - printer redirection is enabled on the host pool with
+    `redirectprinters:i:1`
 
-This means the current Entra user experience is desktop-first again, with
-desktop-session shaping on the host rather than pure RemoteApp.
+This means the current declared AVD user path is `RemoteApp`, while older
+desktop-first shaping tests remain historical context only.
 
 Current routing model:
 
@@ -142,40 +145,36 @@ Current routing model:
 
 ## Most Important Current Limitation
 
-Pure RemoteApp is not usable for `RDPWin`, and it is no longer the active test
-path.
+The current limitation is no longer AVD publication or session-host health.
 
-Current observed behavior:
-
-- selecting the pure RemoteApp reaches Windows `Welcome`
-- the user profile loads successfully
-- the session logs off almost immediately afterward
-- enabling the enhanced RemoteApp shell runtime did not change that outcome
-- a clean retest after the Zen license was reactivated still crashed
-- the current desktop model now launches `RDPWin` at logon for non-admin users
-
-Interpretation:
+Current known-good platform state:
 
 - Entra login is working
 - AVD brokering is working
-- profile load is working
-- the Zen license issue was real, but it was not the root cause of the pure
-  RemoteApp crash
-- the remaining work is on the desktop-shaped user experience and any residual
-  backend/app validation, not on proving RemoteApp
+- `RDPDISC01` is healthy and available in the host pool
+- `RDPWin` is published as a `RemoteApp`
+- printer redirection is enabled
+
+Historical note worth keeping:
+
+- earlier pure-RemoteApp attempts crashed after profile load
+- the Zen license issue was real, but it was not the root cause of that older
+  failure path
+
+Use that crash history as background, not as the default description of the
+current lab state without a fresh reproduction.
 
 ## Working Assumption
 
 The active model is now:
 
-- AVD desktop session for the user path
-- local policy / scripted session shaping on `RDPDISC01`
-- auto-launch `RDPWin` at logon
-- make the session feel app-like
-- log off the session when `RDPWin` closes
+- `Windows App` / `AVD` for user entry
+- published `RemoteApp` for `RDPWin`
+- `AAD DS` on both Windows servers for backend app, `SMB`, and database auth
+- staged user routing through `RDPNT1000/2000/3000`
 
-This is closer to the current TERM-server behavior than Bastion, and is more
-realistic than forcing pure RemoteApp if `RDPWin` is not RemoteApp-clean.
+Earlier desktop-session shaping remains available as historical lab context, but
+it should not be treated as the current declared user path.
 
 ## PCI Direction
 
@@ -283,7 +282,8 @@ Files additionally updated to support FS Capabilities landing-zone reuse:
   - the temporary Zen license was directly queried and shown as `Expired` on
     `2026-04-15`
   - the Zen license was reactivated and `Btrieve Error 161` cleared
-  - RemoteApp still crashes after the license fix
+  - the old post-license RemoteApp crash result should be treated as historical
+    context unless reproduced again in the current setup
 - UX shaping checks confirmed:
   - shell-kill and aggressive Start/taskbar restrictions destabilized `RDPWin`
   - those restrictions were rolled back
@@ -301,9 +301,10 @@ The next meaningful work is:
 
 1. validate the freshly deployed FS Capabilities lab
 2. confirm AVD session-host health and user-path access in the new tenant
-3. keep the desktop model as the primary user path
-4. treat pure RemoteApp as a tested dead end unless new vendor guidance says
-   otherwise
+3. keep the published `RemoteApp` path and backend dependency chain aligned with
+   the live test state
+4. keep desktop-shaping guidance as fallback/recovery context, not as the
+   default target narrative
 5. replace the current `HKLM Run` launcher with a more reliable logon-time
    trigger, preferably a Scheduled Task
 6. keep `explorer.exe` alive and avoid shell replacement or aggressive Start
@@ -322,8 +323,8 @@ The next meaningful work is:
 ## Probe Guidance
 
 The probe remains useful for install/config drift checks, but it is not the
-current blocker. The main open work is validating the stable desktop-shaped user
-path and only chasing backend state again if a new runtime error appears.
+current blocker. The main open work is validating the active RemoteApp path and
+only chasing backend state again if a new runtime error appears.
 
 Probe path on the Windows host:
 
@@ -726,3 +727,40 @@ explicitly:
 The same Q&A did not provide explicit port numbers in the transcript excerpt;
 only that firewall, routing, and config-file details exist and should be
 collected separately.
+
+## FYI: Identity And PCI Discussion Follow-Up
+
+Additional meeting notes from the later identity / PCI discussion that should
+stay attached to the lab record:
+
+- the group wants to avoid a large identity redesign unless the app or PCI
+  position forces it
+- the front-end `RDPWin` access question should be separated from broader
+  identity questions for adjacent systems
+- the main narrow decision question is whether the hosted app front end can be
+  presented through a tightly controlled `RemoteApp` / virtual desktop pattern
+  without requiring every user to have a uniquely named Windows session
+- the shared-account / machine-account style access model is still being
+  explored for PCI acceptability if strong edge MFA, limited host rights, and
+  app-level controls can be shown
+- named-user access must remain a live fallback option in case the shared
+  session model is rejected later
+
+Most important technical unknowns called out in that discussion:
+
+- confirm the real database access pattern for the app
+- confirm whether the app truly requires mounted `SMB` / file-share access or
+  whether `Actian Zen` connectivity is sufficient for the front-end runtime
+- confirm what the internal `RDPWin` auth system actually uses for user
+  identity, account storage, and MFA state
+- confirm whether any shared or internal app accounts touch PCI-relevant
+  functions such as uploads or writes into the card-data environment
+
+Current practical ownership from that meeting:
+
+- continue lab testing and rebuild work on the `RDPWin` path
+- develop a future-state proposal for the `IRM` side separately
+- continue compliance review of the shared-session / edge-MFA model with PCI
+  stakeholders
+- keep the named-user model available as a fallback if the lower-change option
+  fails
